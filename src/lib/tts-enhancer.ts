@@ -1,11 +1,11 @@
 /**
  * TTS Input Text Enhancer
  *
- * Follows ElevenLabs and production-grade Create AI best practices:
+ * Follows production-grade TTS best practices:
  * - Character normalization (written → spoken symbols)
  * - Number/currency/phone/date normalization for natural speech
  * - Abbreviation expansion
- * - Supports <break time="x.xs" /> and [audio tags] pass-through for Eleven v3
+ * - Supports <break time="x.xs" /> and [audio tags] pass-through for Echo v3
  */
 
 // --- Number-to-words (cardinal, 0–999999) for currency and numbers ---
@@ -72,7 +72,7 @@ const ORDINALS: Record<string, string> = {
 };
 
 /**
- * Full normalization for TTS (ElevenLabs best practices):
+ * Full normalization for TTS (Echo best practices):
  * - Phone numbers → spoken digits with commas
  * - Currency ($, £, €, ¥) → words
  * - Percent → "X percent"

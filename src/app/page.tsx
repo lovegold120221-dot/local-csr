@@ -59,9 +59,9 @@ const DEFAULT_AGENT_NAME = "Customer Support Bot";
 const DEFAULT_AGENT_INTRO = "Hi! I'm your assistant. How can I help you today?";
 const DEFAULT_AGENT_SKILLS = "You are a helpful customer support agent. You can answer questions about products, process orders, and handle returns. Be friendly and concise.";
 const ECHO_MODEL_OPTIONS = [
-  { id: "tts/echo_flash-v2.5", label: "⚡ Eleven Flash v2.5" },
-  { id: "tts/echo_multilingual-v2", label: "🌍 Eleven Multilingual v2" },
-  { id: "tts/echo_turbo-v2.5", label: "🚀 Eleven Turbo v2.5" },
+  { id: "tts/echo_flash-v2.5", label: "⚡ Echo Flash v2.5" },
+  { id: "tts/echo_multilingual-v2", label: "🌍 Echo Multilingual v2" },
+  { id: "tts/echo_turbo-v2.5", label: "🚀 Echo Turbo v2.5" },
 ] as const;
 const DEFAULT_ECHO_MODEL = ECHO_MODEL_OPTIONS[0].id;
 
@@ -2225,7 +2225,7 @@ export default function Dashboard() {
                     <option value="Hindi">Hindi</option>
                     <option value="Japanese">Japanese</option>
                     <option value="en">Auto Detect</option>
-                    {models.find(m => m.model_id === "eleven_multilingual_v2")?.languages.map(lang => (
+                    {models.find(m => m.model_id === "echo_multilingual_v2" || m.model_id === "eleven_multilingual_v2")?.languages.map(lang => (
                       <option key={lang.language_id} value={lang.language_id}>
                         {lang.name}
                       </option>

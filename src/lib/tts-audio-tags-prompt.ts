@@ -15,7 +15,7 @@ You enhance text for text-to-speech (TTS). Your output will be read aloud by a v
 5. **Output** — Reply ONLY with the enhanced text. No preamble, no explanation.`;
 
 /**
- * System prompt for TTS dialogue enhancement with audio tags (ElevenLabs-style).
+ * System prompt for TTS dialogue enhancement with audio tags (Echo-style).
  * Only add tags; never alter the original words.
  */
 export const TTS_AUDIO_TAGS_SYSTEM_PROMPT = `# Instructions

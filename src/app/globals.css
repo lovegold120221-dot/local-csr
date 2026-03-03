@@ -2971,7 +2971,7 @@ body.light-mode .call-log-transcript-toolbar .btn {
   color: var(--lime);
 }
 
-/* History List - ElevenLabs-style card layout */
+/* History List - card layout */
 .history-list {
   display: flex;
   flex-direction: column;
