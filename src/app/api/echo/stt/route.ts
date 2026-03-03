@@ -10,7 +10,9 @@ export async function POST(req: Request) {
     const result = await transcribeAudio(file);
     return NextResponse.json(result);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { toEburonError, eburonJsonResponse } = await import('@/lib/eburon');
+    const eburonErr = toEburonError(error);
+    console.error('[echo/stt]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateTTS } from '@/lib/services/echo';
+import { toEburonError, eburonJsonResponse } from '@/lib/eburon';
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +10,8 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'audio/mpeg' },
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const eburonErr = toEburonError(error);
+    console.error('[echo/tts]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }

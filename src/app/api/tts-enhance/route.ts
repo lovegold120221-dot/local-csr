@@ -99,8 +99,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ enhanced });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[tts-enhance]', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { toEburonError, eburonJsonResponse } = await import('@/lib/eburon');
+    const eburonErr = toEburonError(err);
+    console.error('[tts-enhance]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }

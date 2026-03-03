@@ -1,0 +1,78 @@
+[
+  {
+    "rule_id": "wl_default_allow_all",
+    "name": "WL.global.any.allow.*",
+    "enabled": true,
+    "scope": "global",
+    "priority": 0,
+    "match": {
+      "subject": "any"
+    },
+    "alias_patterns": ["*"],
+    "effect": "allow",
+    "limits": {
+      "rpm": 60,
+      "tpm": 120000,
+      "max_output_tokens": 4096,
+      "max_session_seconds": 900
+    },
+    "reason": "Default global allow — override with more specific deny/allow rules"
+  },
+  {
+    "rule_id": "wl_prod_tenant_codemax",
+    "name": "WL.prod.tenant.default.allow.codemax-*",
+    "enabled": true,
+    "scope": "tenant",
+    "priority": 100,
+    "match": {
+      "env": "prod",
+      "capability": "llm",
+      "subject": "any"
+    },
+    "alias_patterns": ["llm/codemax_*"],
+    "capabilities_allow": ["chat", "tool_calls", "stream"],
+    "effect": "allow",
+    "limits": {
+      "rpm": 60,
+      "tpm": 128000,
+      "max_input_tokens": 128000,
+      "max_output_tokens": 4096,
+      "max_session_seconds": 900
+    },
+    "reason": "Allow all Codemax LLM models for production tenants"
+  },
+  {
+    "rule_id": "wl_prod_echo_tts",
+    "name": "WL.prod.global.any.tts.synth.echo_*",
+    "enabled": true,
+    "scope": "global",
+    "priority": 50,
+    "match": {
+      "env": "prod",
+      "capability": "tts",
+      "action": "synth",
+      "subject": "any"
+    },
+    "alias_patterns": ["tts/echo_*"],
+    "effect": "allow",
+    "limits": {
+      "rpm": 30,
+      "tpm": 50000
+    },
+    "reason": "Allow Echo TTS models globally"
+  },
+  {
+    "rule_id": "wl_trial_deny_non_codemax",
+    "name": "WL.ws.role:trial.llm.deny.non-codemax",
+    "enabled": false,
+    "scope": "ws",
+    "priority": 200,
+    "match": {
+      "subject": "role:trial",
+      "capability": "llm"
+    },
+    "alias_patterns": ["llm/orbit_*"],
+    "effect": "deny",
+    "reason": "Deny non-Codemax LLM models for trial users (disabled by default)"
+  }
+]

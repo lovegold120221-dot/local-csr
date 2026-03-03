@@ -1,0 +1,86 @@
+[
+  {
+    "id": "llm/codemax_4o-mini",
+    "capability": "llm",
+    "alias": "codemax",
+    "family": "4o-mini",
+    "version": "latest",
+    "upstream": {
+      "vendor": "VENDOR_A",
+      "model": "gpt-4o-mini"
+    },
+    "capabilities": ["chat", "tool_calls"],
+    "defaultParams": { "temperature": 0.2, "top_p": 1, "max_output_tokens": 4096 },
+    "status": "active"
+  },
+  {
+    "id": "llm/codemax_realtime-2025-06-03",
+    "capability": "llm",
+    "alias": "codemax",
+    "family": "realtime",
+    "version": "2025-06-03",
+    "upstream": {
+      "vendor": "VENDOR_A",
+      "model": "gpt-4o-realtime-preview-2025-06-03"
+    },
+    "capabilities": ["chat", "stream"],
+    "defaultParams": { "temperature": 0.2, "max_output_tokens": 4096 },
+    "status": "active"
+  },
+  {
+    "id": "llm/codemax_4o-global",
+    "capability": "llm",
+    "alias": "codemax",
+    "family": "4o",
+    "version": "global",
+    "upstream": {
+      "vendor": "VENDOR_A",
+      "model": "gpt-4o-global"
+    },
+    "capabilities": ["chat", "tool_calls", "stream"],
+    "defaultParams": { "temperature": 0.2, "top_p": 1, "max_output_tokens": 4096 },
+    "status": "active"
+  },
+  {
+    "id": "tts/echo_multilingual-v2",
+    "capability": "tts",
+    "alias": "echo",
+    "family": "multilingual",
+    "version": "v2",
+    "upstream": {
+      "vendor": "VENDOR_B",
+      "model": "eleven_multilingual_v2"
+    },
+    "capabilities": ["synth"],
+    "defaultParams": {},
+    "status": "active"
+  },
+  {
+    "id": "stt/scribe_v1-latest",
+    "capability": "stt",
+    "alias": "scribe",
+    "family": "v1",
+    "version": "latest",
+    "upstream": {
+      "vendor": "VENDOR_B",
+      "model": "scribe_v1"
+    },
+    "capabilities": ["transcribe"],
+    "defaultParams": {},
+    "status": "active"
+  },
+  {
+    "id": "llm/orbit_nova2-latest",
+    "capability": "llm",
+    "alias": "orbit",
+    "family": "nova2",
+    "version": "latest",
+    "upstream": {
+      "vendor": "VENDOR_C",
+      "model": "nova-2"
+    },
+    "capabilities": ["chat", "stream"],
+    "defaultParams": { "temperature": 0.7, "top_p": 1, "max_output_tokens": 2048 },
+    "status": "active"
+  }
+]

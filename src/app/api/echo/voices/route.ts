@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { fetchVoices } from '@/lib/services/echo';
+import { toEburonError, eburonJsonResponse } from '@/lib/eburon';
 
 export async function GET() {
   try {
     const voices = await fetchVoices();
     return NextResponse.json(voices);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const eburonErr = toEburonError(error);
+    console.error('[echo/voices]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }

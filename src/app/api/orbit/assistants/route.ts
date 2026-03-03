@@ -6,8 +6,9 @@ export async function GET() {
     const list = await fetchAssistants();
     return NextResponse.json(Array.isArray(list) ? list : []);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[orbit/assistants]', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { toEburonError, eburonJsonResponse } = await import('@/lib/eburon');
+    const eburonErr = toEburonError(error);
+    console.error('[orbit/assistants]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }

@@ -81,15 +81,21 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
   } catch (error: unknown) {
     const raw = error instanceof Error ? error.message : 'Unknown error';
+    const { toEburonError, eburonJsonResponse } = await import('@/lib/eburon');
+    const eburonErr = toEburonError(error);
     const isValidationError = typeof raw === 'string' && (
       raw.includes('must be one of the following values') ||
       raw.includes('Bad Request') ||
       raw.includes('transcriber.provider') ||
       raw.includes('model.provider')
     );
-    const message = isValidationError
-      ? 'Invalid agent configuration. Please try again or contact support.'
-      : raw;
-    return NextResponse.json({ error: message }, { status: isValidationError ? 400 : 500 });
+    if (isValidationError) {
+      return NextResponse.json(
+        { error: 'Invalid agent configuration. Please try again or contact support.', code: eburonErr.code },
+        { status: 400 },
+      );
+    }
+    console.error('[orbit/agents]', { code: eburonErr.code, detail: eburonErr.detail });
+    return NextResponse.json(...eburonJsonResponse(eburonErr));
   }
 }
