@@ -2,7 +2,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+// Prefer the new publishable key format; fall back to legacy anon key
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  ''
 
 // Create appropriate client based on environment availability
 let supabaseClient: SupabaseClient | {
@@ -16,7 +20,7 @@ let supabaseClient: SupabaseClient | {
   }
 }
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === '' || supabaseAnonKey === '') {
+if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('⚠️ Supabase credentials not available. Using mock client.')
   
   supabaseClient = {

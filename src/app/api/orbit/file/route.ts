@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/services/orbit';
+import { logApiUsage, requireApiPrincipal } from '@/lib/api-key-auth';
 
 const ACCEPTED_TYPES = [
   'text/plain',
@@ -16,16 +17,26 @@ const ACCEPTED_TYPES = [
 ];
 
 export async function POST(req: Request) {
+  const startedAtMs = Date.now();
+  const auth = await requireApiPrincipal(req);
+  if (!auth.ok) return auth.response;
+
+  let status = 200;
+  let errorMessage: string | null = null;
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file?.size) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      status = 400;
+      errorMessage = "No file provided";
+      return NextResponse.json({ error: errorMessage }, { status });
     }
     if (file.size > 300 * 1024) {
+      status = 400;
+      errorMessage = "File too large. Keep files under 300KB for best performance.";
       return NextResponse.json(
-        { error: 'File too large. Keep files under 300KB for best performance.' },
-        { status: 400 }
+        { error: errorMessage },
+        { status }
       );
     }
     const type = file.type || '';
@@ -33,15 +44,28 @@ export async function POST(req: Request) {
     const allowedExts = ['txt', 'pdf', 'docx', 'doc', 'csv', 'md', 'tsv', 'yaml', 'yml', 'json', 'xml', 'log'];
     const isAllowedType = ACCEPTED_TYPES.includes(type) || allowedExts.includes(ext);
     if (!isAllowedType) {
+      status = 400;
+      errorMessage = `Unsupported format. Use: ${allowedExts.join(', ')}`;
       return NextResponse.json(
-        { error: `Unsupported format. Use: ${allowedExts.join(', ')}` },
-        { status: 400 }
+        { error: errorMessage },
+        { status }
       );
     }
     const result = await uploadFile(file, file.name);
     return NextResponse.json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Upload failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    status = 500;
+    errorMessage = message;
+    return NextResponse.json({ error: message }, { status });
+  } finally {
+    await logApiUsage({
+      request: req,
+      principal: auth.principal,
+      endpoint: "/api/orbit/file",
+      statusCode: status,
+      startedAtMs,
+      errorMessage,
+    });
   }
 }

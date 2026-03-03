@@ -1,4 +1,5 @@
 // cspell:ignore elevenlabs
+import { resolveEchoAlias } from '@/lib/eburon-alias-router';
 const PROVIDER_KEY = process.env.TTS_PROVIDER_KEY || process.env.ECHO_PROVIDER_KEY || process.env.ELEVENLABS_API_KEY;
 const PROVIDER_BASE_URL = process.env.ECHO_PROVIDER_BASE_URL || 'https://api.elevenlabs.io/v1';
 
@@ -72,10 +73,14 @@ export async function fetchVoices(): Promise<Voice[]> {
 }
 
 export async function generateTTS(voiceId: string, text: string, modelId: string, outputFormat: string) {
-  // Stealth mapping: convert generic model names back to provider IDs
-  const providerModelId = modelId.replace('echo_', 'eleven_').replace('.', '_');
-  
-  console.log(`TTS Request: Voice=${voiceId}, Model=${providerModelId}, TextLength=${text.length}`);
+  // Resolve Eburon canonical alias → upstream provider model (vendor ID stays server-side only)
+  const decision = resolveEchoAlias(modelId);
+  if (decision.status === 'ERROR' || !decision.upstreamModelId) {
+    throw new Error(decision.publicMessage ?? 'Unknown Model');
+  }
+  const providerModelId = decision.upstreamModelId;
+
+  console.log(`TTS Request: Voice=${voiceId}, CanonicalModel=${decision.canonicalId}, TextLength=${text.length}`);
 
   const res = await echoProviderRequest(`/text-to-speech/${voiceId}?output_format=${outputFormat}`, {
     method: 'POST',

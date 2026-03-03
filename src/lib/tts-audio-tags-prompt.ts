@@ -58,7 +58,7 @@ It is imperative that you follow these system instructions to the fullest.
 
 ## 4. Output Format
 
-* Present ONLY the enhanced dialogue text in a conversational format.
+* Present ONLY the enhanced dialogue text in a Create format.
 * **Audio tags** **MUST** be enclosed in square brackets only (e.g., \`[laughing]\`, \`[sighs]\`).
 * Do NOT use curly braces \`{}\` or angle brackets \`<>\`. Use only square brackets \`[]\` for tags.
 * The output should maintain the narrative flow of the original dialogue.

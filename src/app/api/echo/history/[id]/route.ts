@@ -1,12 +1,24 @@
 import { NextResponse } from 'next/server';
 import { echoProviderRequest } from '@/lib/services/echo';
+import { logApiUsage, requireApiPrincipal } from '@/lib/api-key-auth';
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startedAtMs = Date.now();
+  const auth = await requireApiPrincipal(request);
+  if (!auth.ok) return auth.response;
+
+  let status = 200;
+  let errorMessage: string | null = null;
   try {
     const { id } = await params;
+    if (!id) {
+      status = 400;
+      errorMessage = "History ID required";
+      return NextResponse.json({ error: errorMessage }, { status });
+    }
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'mp3';
 
@@ -34,6 +46,17 @@ export async function GET(
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    status = 500;
+    errorMessage = message;
+    return NextResponse.json({ error: message }, { status });
+  } finally {
+    await logApiUsage({
+      request,
+      principal: auth.principal,
+      endpoint: "/api/echo/history/[id]",
+      statusCode: status,
+      startedAtMs,
+      errorMessage,
+    });
   }
 }

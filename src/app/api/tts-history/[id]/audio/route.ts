@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseClientFromRequest } from '@/lib/supabase-server';
 import { generateTTS } from '@/lib/services/echo';
+import { DEFAULT_ECHO_ALIAS } from '@/lib/eburon-alias-router';
 
 const BUCKET = 'tts-audio';
 
@@ -27,7 +28,7 @@ export async function GET(
     }
 
     if (format === 'wav' && row.text && row.voice_id) {
-      const blob = await generateTTS(row.voice_id, row.text, 'echo_flash_v2.5', 'wav_44100');
+      const blob = await generateTTS(row.voice_id, row.text, DEFAULT_ECHO_ALIAS, 'wav_44100');
       return new NextResponse(blob, {
         headers: {
           'Content-Type': 'audio/wav',
@@ -39,7 +40,7 @@ export async function GET(
 
     if (!row.audio_path && row.text && row.voice_id) {
       const outputFormat = format === 'wav' ? 'wav_44100' : 'mp3_44100_128';
-      const blob = await generateTTS(row.voice_id, row.text, 'echo_flash_v2.5', outputFormat);
+      const blob = await generateTTS(row.voice_id, row.text, DEFAULT_ECHO_ALIAS, outputFormat);
       return new NextResponse(blob, {
         headers: {
           'Content-Type': format === 'wav' ? 'audio/wav' : 'audio/mpeg',

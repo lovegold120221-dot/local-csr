@@ -9,6 +9,8 @@ function getOrbitSecret() {
   return SECRET.trim();
 }
 
+import { sendSmsTool } from '../tools/twilio-sms';
+
 export async function orbitCoreRequest(method: string, endpoint: string, payload: unknown = null) {
   const orbitSecret = getOrbitSecret();
   if (!orbitSecret) {
@@ -175,6 +177,7 @@ export async function createAssistantFromScratch(params: {
       messages: [
         { role: 'system' as const, content: systemPrompt || 'You are a helpful AI assistant.' },
       ],
+      tools: [sendSmsTool],
       ...(toolIds?.length ? { toolIds } : {}),
     },
     voice: voiceConfig,

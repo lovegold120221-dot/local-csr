@@ -1,6 +1,6 @@
 # EchoLabs
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app), featuring a comprehensive dashboard for Voice Cloning, STT, TTS, and Conversational from Eburon AI.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app), featuring a comprehensive dashboard for Clone, STT, TTS, and Create from Eburon AI.
 
 ## Getting Started
 
@@ -28,6 +28,40 @@ To save and replay generated TTS per user, set up Supabase and run the migration
 2. In the Supabase SQL Editor, run the script in `supabase/migrations/20250301000000_tts_history.sql` to create the `tts_history` table and `tts-audio` storage bucket with RLS.
 
 After that, signed-in users get their TTS saved automatically and can play or download from the **History** tab.
+
+### API Keys (authenticated API + usage tracking)
+
+The API now supports per-user API keys (created in **Settings → API Keys**) and usage logs.
+
+Required env var for server-side API key validation/logging:
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+- API keys are stored as SHA-256 hashes (raw keys are shown once on creation).
+- Usage is tracked per request (`endpoint`, `method`, `status_code`, `latency_ms`).
+- Apply `supabase/migrations/20260301000002_api_keys_and_usage.sql` (or run `supabase/SETUP.sql`) to create `api_keys` and `api_usage`.
+
+### STT via Deepgram
+
+Speech-to-Text now uses Deepgram (`/api/echo/stt`).
+
+Required env var:
+
+```bash
+DEEPGRAM_API_KEY=your-deepgram-key
+```
+
+Optional:
+
+```bash
+DEEPGRAM_MODEL=nova-3
+```
+
+The STT response is also wired into **Create → Describe your agent**, and you can generate an agent template directly from:
+- STT transcript output
+- TTS editor prompt text
 
 ### VAPI / Orbit (agents & calls)
 

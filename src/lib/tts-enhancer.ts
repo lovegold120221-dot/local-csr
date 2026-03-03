@@ -1,7 +1,7 @@
 /**
  * TTS Input Text Enhancer
  *
- * Follows ElevenLabs and production-grade conversational AI best practices:
+ * Follows ElevenLabs and production-grade Create AI best practices:
  * - Character normalization (written → spoken symbols)
  * - Number/currency/phone/date normalization for natural speech
  * - Abbreviation expansion
