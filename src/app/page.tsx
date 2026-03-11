@@ -154,7 +154,6 @@ export default function Dashboard() {
   const [newApiKeyName, setNewApiKeyName] = useState("Default key");
   const [newlyCreatedApiKey, setNewlyCreatedApiKey] = useState("");
   const [apiUsageSummary, setApiUsageSummary] = useState<ApiUsageSummary | null>(null);
-  const audioVizIdStr = useId();
 
   // Initialize OrbitCore inside the component for better React integration
   const orbit = useMemo(() => {
@@ -166,6 +165,33 @@ export default function Dashboard() {
     }
     return new OrbitCore(token);
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setApiBaseUrl(`${window.location.origin}/api/v1`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!downloadMenuId) return;
+    const handler = (e: MouseEvent) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+        setDownloadMenuId(null);
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [downloadMenuId]);
+
+  // Play history audio after React has updated the DOM (avoids AbortError from src update during play)
+  useEffect(() => {
+    if (!historyAudioUrl || !playingHistoryId || !historyAudioRef.current) return;
+    const el = historyAudioRef.current;
+    el.pause();
+    el.play().catch(() => {});
+  }, [historyAudioUrl, playingHistoryId]);
+
+  const [models, setModels] = useState<{ model_id: string; name: string; languages: { language_id: string; name: string }[] }[]>([]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("echo-theme") as "dark" | "light" || "dark";
@@ -229,6 +255,151 @@ export default function Dashboard() {
       orbit.off("volume-level", onVolumeLevel);
     };
   }, [orbit]);
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase.auth.getSession().then((response: any) => {
+      const { data: { session } } = response;
+      setUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return setAuthStatus("Email and password required.");
+    setIsAuthProcessing(true);
+    setAuthStatus("");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setAuthStatus(error.message);
+    setIsAuthProcessing(false);
+  };
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirmPassword) return setAuthStatus("Passwords do not match.");
+    setIsAuthProcessing(true);
+    setAuthStatus("");
+    const response = await supabase.auth.signUp({
+      email,
+      password
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error, data } = response as { error: any; data: any };
+    if (error) {
+      setAuthStatus(error.message);
+    } else if (data.user && data.user.email_confirmed_at) {
+      setAuthStatus("Registration successful! You are now logged in.");
+      // User is automatically logged in if email is confirmed
+      setUser(data.user);
+    } else {
+      setAuthStatus("Registration successful! You can now log in.");
+    }
+    setIsAuthProcessing(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return setAuthStatus("Email required.");
+    setIsAuthProcessing(true);
+    setAuthStatus("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) setAuthStatus(error.message);
+    else setAuthStatus("Reset link sent! Check your email.");
+    setIsAuthProcessing(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("echo-theme", newTheme);
+    const isLight = newTheme === "light";
+    document.documentElement.classList.toggle("light-mode", isLight);
+    document.body.classList.toggle("light-mode", isLight);
+  };
+
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  }, []);
+
+  const authedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const authHeaders = await getAuthHeaders();
+    const headers = new Headers(init.headers ?? {});
+    Object.entries(authHeaders).forEach(([k, v]) => headers.set(k, v));
+    return fetch(input, { ...init, headers });
+  }, [getAuthHeaders]);
+
+  const fetchRealTimeHistory = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await authedFetch("/api/echo/history?page_size=50&sort_direction=desc");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const msg = (errBody as { error?: string })?.error || `Failed to load history (${res.status})`;
+        setHistoryError(msg);
+        setHistory([]);
+        return;
+      }
+      const data = await res.json();
+      const items = Array.isArray(data) ? data : [];
+      setHistory(items.map((h: { history_item_id: string; text: string; voice_id: string; voice_name: string; date_unix: number }) => ({
+        id: h.history_item_id,
+        text: h.text,
+        voice_id: h.voice_id,
+        voice_name: h.voice_name,
+        audio_path: "",
+        created_at: new Date(h.date_unix * 1000).toISOString(),
+      })));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to fetch history.";
+      setHistoryError(msg);
+      setHistory([]);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [authedFetch]);
+
+  useEffect(() => {
+    if (activeTab === "pane-audio" && audioSubTab === "history") {
+      fetchRealTimeHistory();
+    }
+  }, [activeTab, audioSubTab, fetchRealTimeHistory]);
+
+  const fetchCallLogs = useCallback(async () => {
+    setIsCallLogsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      const res = await authedFetch(`/api/orbit/calls?${params}`, { cache: "no-store" });
+      const data = await res.json();
+      if (Array.isArray(data)) setCallLogs(data);
+      else setCallLogs([]);
+    } catch {
+      setCallLogs([]);
+    } finally {
+      setIsCallLogsLoading(false);
+    }
+  }, [authedFetch]);
+
+  useEffect(() => {
+    if (activeTab === "pane-agents" || activeTab === "pane-Create" || activeTab === "pane-call-logs") fetchCallLogs();
+  }, [activeTab, fetchCallLogs]);
 
   const handleToggleCall = async (assistantId: string) => {
     if (!orbit) {
