@@ -299,17 +299,17 @@ export default function DocsPane({
         <div className="docs-pg-auth-notice">
           <div className="docs-pg-auth-top">
             <Key size={14} />
-            <span className="font-semibold uppercase text-[10px] tracking-wider opacity-60">Authentication</span>
+            <span className="docs-pg-auth-label">Authentication</span>
           </div>
           
           {newlyCreatedApiKey ? (
-            <div className="mt-2 p-3 bg-limeDim/10 border border-lime/20 rounded-lg flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-lime opacity-80 uppercase font-bold">New API Key</span>
-                <code className="text-xs text-lime font-mono break-all">{newlyCreatedApiKey}</code>
+            <div className="docs-pg-key-card">
+              <div className="docs-pg-key-card-main">
+                <span className="docs-pg-key-card-label">New API Key</span>
+                <code className="docs-pg-key-card-value">{newlyCreatedApiKey}</code>
               </div>
               <button 
-                className="btn icon-only !w-8 !h-8 !rounded-full bg-lime/10 border-lime/20 text-lime"
+                className="btn icon-only docs-pg-key-card-copy"
                 onClick={onCopyNewApiKey}
                 title="Copy Key"
               >
@@ -317,7 +317,7 @@ export default function DocsPane({
               </button>
             </div>
           ) : isAuthenticated ? (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="docs-pg-auth-actions">
               <input
                 type="text"
                 className="docs-pg-auth-input"
@@ -326,7 +326,7 @@ export default function DocsPane({
                 onChange={(e) => onApiKeyNameChange?.(e.target.value)}
               />
               <button 
-                className="btn primary !py-1.5 text-xs whitespace-nowrap"
+                className="btn primary docs-pg-create-key-btn"
                 onClick={onCreateApiKey}
                 disabled={isApiKeysLoading || !apiKeyName}
               >
@@ -334,7 +334,7 @@ export default function DocsPane({
               </button>
               {onRefreshApiKeys && (
                 <button 
-                  className="btn icon-only !w-8 !h-8"
+                  className="btn icon-only docs-pg-refresh-btn"
                   onClick={onRefreshApiKeys}
                   title="Refresh keys"
                 >
@@ -343,12 +343,12 @@ export default function DocsPane({
               )}
             </div>
           ) : (
-            <div className="mt-1 text-xs opacity-60">
+            <div className="docs-pg-auth-helper">
               Sign in to manage API keys.
             </div>
           )}
           {apiKeysStatus && (
-            <div className="mt-2 text-[10px] text-lime opacity-80 font-medium">
+            <div className="docs-pg-auth-status">
               {apiKeysStatus}
             </div>
           )}
@@ -362,9 +362,9 @@ export default function DocsPane({
               <div className="docs-pg-params-list">
                 {selectedEndpoint.params.map(p => (
                   <div key={p.name} className="docs-pg-param-item">
-                    <div className="flex flex-col gap-0.5">
+                    <div className="docs-pg-param-meta">
                       <code className="docs-pg-param-name">{p.name}</code>
-                      <span className="docs-pg-param-type">{p.type} {p.required && <span className="text-bad font-bold">*</span>}</span>
+                      <span className="docs-pg-param-type">{p.type} {p.required && <span className="docs-pg-required">*</span>}</span>
                     </div>
                     <input 
                       type="text" 
@@ -381,9 +381,9 @@ export default function DocsPane({
           )}
         </div>
 
-        <div className="docs-pg-footer mt-auto pt-6 border-t border-stroke">
+        <div className="docs-pg-footer">
           <button className="docs-pg-clear" onClick={() => { setLastResponse(null); setLastStatus(null); }}>Clear</button>
-          <a href="#" className="docs-pg-ref-link flex items-center gap-1">Docs <Maximize2 size={12} /></a>
+          <a href="#" className="docs-pg-ref-link">Docs <Maximize2 size={12} /></a>
         </div>
       </main>
 
@@ -406,34 +406,34 @@ export default function DocsPane({
                 </button>
               ))}
             </div>
-            <button className="docs-pg-copy-btn text-faint hover:text-ink transition-colors" onClick={() => copyToClipboard(selectedEndpoint.examples[codeTab](apiBaseUrl))}>
+            <button className="docs-pg-copy-btn" onClick={() => copyToClipboard(selectedEndpoint.examples[codeTab](apiBaseUrl))}>
               <Copy size={14} />
             </button>
           </div>
           <div className="docs-pg-panel-content scroll-soft">
-            <pre className="text-[11px] leading-relaxed"><code>{selectedEndpoint.examples[codeTab](apiBaseUrl)}</code></pre>
+            <pre className="docs-pg-code-pre"><code>{selectedEndpoint.examples[codeTab](apiBaseUrl)}</code></pre>
           </div>
         </div>
 
         {/* Response Block */}
-        <div className="docs-pg-panel docs-pg-response-panel border-t border-stroke">
+        <div className="docs-pg-panel docs-pg-response-panel">
           <div className="docs-pg-panel-header">
-            <span className="docs-pg-panel-title text-[10px] font-bold tracking-widest opacity-60">RESPONSE</span>
+            <span className="docs-pg-panel-title">Response</span>
             {lastStatus && (
               <div className="docs-pg-response-meta">
-                <span className="text-ok flex items-center gap-1 font-bold"><CheckCircle2 size={12} /> {lastStatus}</span>
-                <span className="text-faint">·</span>
-                <span className="text-faint">{latency}ms</span>
+                <span className="docs-pg-response-status"><CheckCircle2 size={12} /> {lastStatus}</span>
+                <span className="docs-pg-response-separator">·</span>
+                <span className="docs-pg-response-time">{latency}ms</span>
               </div>
             )}
           </div>
           <div className="docs-pg-panel-content docs-pg-response-content scroll-soft">
             {lastResponse ? (
-              <pre className="text-[11px] text-ok/80 leading-relaxed"><code>{JSON.stringify(lastResponse, null, 2)}</code></pre>
+              <pre className="docs-pg-response-pre"><code>{JSON.stringify(lastResponse, null, 2)}</code></pre>
             ) : (
-              <div className="docs-pg-response-placeholder opacity-40 grayscale flex flex-col items-center gap-3">
+              <div className="docs-pg-response-placeholder">
                 <Send size={24} />
-                <span className="text-xs uppercase tracking-widest font-semibold">Ready to test</span>
+                <span className="docs-pg-response-placeholder-label">Ready to test</span>
               </div>
             )}
           </div>
