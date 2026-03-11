@@ -13,7 +13,7 @@ export async function orbitCoreRequest(method: string, endpoint: string, payload
   const orbitSecret = getOrbitSecret();
   if (!orbitSecret) {
     throw new Error(
-      'Missing agents API key. Set ORBIT_SECRET in .env.local (server-side only).'
+      'Missing assistant platform API key. Set ORBIT_SECRET in .env.local (server-side only).'
     );
   }
 
@@ -36,7 +36,7 @@ export async function orbitCoreRequest(method: string, endpoint: string, payload
   const res = await fetch(`https://api.vapi.ai${endpoint}`, options);
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(errorText || "Orbit core Request failed");
+    throw new Error(errorText || "Assistant platform request failed");
   }
   return res.json();
 }
@@ -45,7 +45,7 @@ export async function orbitCoreRequest(method: string, endpoint: string, payload
 export async function uploadFile(file: Blob, filename?: string): Promise<{ id: string }> {
   const orbitSecret = getOrbitSecret();
   if (!orbitSecret) {
-    throw new Error('Missing agents API key. Set ORBIT_SECRET in .env.local (server-side only).');
+    throw new Error('Missing assistant platform API key. Set ORBIT_SECRET in .env.local (server-side only).');
   }
   const formData = new FormData();
   formData.append('file', file, filename || 'document');
@@ -59,7 +59,7 @@ export async function uploadFile(file: Blob, filename?: string): Promise<{ id: s
     throw new Error(errorText || 'File upload failed');
   }
   const data = (await res.json()) as { id?: string };
-  if (!data?.id) throw new Error('No file ID returned from VAPI');
+  if (!data?.id) throw new Error('No file ID returned from the assistant platform');
   return { id: data.id };
 }
 
@@ -84,7 +84,7 @@ export async function createQueryTool(params: {
     ],
   };
   const data = (await orbitCoreRequest('POST', '/tool', payload)) as { id?: string };
-  if (!data?.id) throw new Error('No tool ID returned from VAPI');
+  if (!data?.id) throw new Error('No tool ID returned from the assistant platform');
   return { id: data.id };
 }
 

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { PLATFORM_DESCRIPTION, PLATFORM_NAME } from "@/lib/brand";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "EchoLabs · Eburon AI",
-  description: "Advanced Voice & Create AI Console",
+  title: PLATFORM_NAME,
+  description: PLATFORM_DESCRIPTION,
 };
 
 export default function RootLayout({

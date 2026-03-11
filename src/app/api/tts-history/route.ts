@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const supabase = createSupabaseClientFromRequest(request);
   if (!supabase) {
     return NextResponse.json(
-      { error: 'Unauthorized. Supabase may not be configured (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) or no auth token provided.' },
+      { error: 'Unauthorized. Storage or authentication is not configured, or no auth token was provided.' },
       { status: 401 }
     );
   }
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     if (uploadError) {
       console.error('tts-history upload error:', uploadError);
       return NextResponse.json(
-        { error: `Storage upload failed: ${uploadError.message}. Ensure tts-audio bucket exists (run supabase/migrations/20250301000000_tts_history.sql).` },
+        { error: 'Storage upload failed. Audio history storage may not be configured.' },
         { status: 500 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       console.error('tts-history insert error:', insertError);
       await supabase.storage.from('tts-audio').remove([path]);
       return NextResponse.json(
-        { error: `Database insert failed: ${insertError.message}. Ensure tts_history table exists (run supabase/migrations/20250301000000_tts_history.sql).` },
+        { error: 'History save failed. Database storage may not be configured.' },
         { status: 500 }
       );
     }

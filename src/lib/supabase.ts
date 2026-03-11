@@ -34,18 +34,18 @@ const isConfigured = supabaseUrl && supabaseAnonKey && isValidUrl(supabaseUrl)
 
 if (!isConfigured) {
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('⚠️ Supabase credentials missing. Using mock client.')
+    console.warn('⚠️ Auth backend credentials missing. Using mock client.')
   } else {
-    console.warn('⚠️ Invalid Supabase URL provided. Using mock client.')
+    console.warn('⚠️ Invalid auth backend URL provided. Using mock client.')
   }
   
   supabaseClient = {
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: null } }),
-      signInWithPassword: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
-      signUp: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
-      resetPasswordForEmail: () => Promise.resolve({ error: { message: 'Supabase not configured' } }),
+      signInWithPassword: () => Promise.resolve({ error: { message: 'Authentication is not configured' } }),
+      signUp: () => Promise.resolve({ error: { message: 'Authentication is not configured' } }),
+      resetPasswordForEmail: () => Promise.resolve({ error: { message: 'Authentication is not configured' } }),
       signOut: () => Promise.resolve({ error: null })
     }
   }

@@ -12,8 +12,8 @@ export async function POST(req: Request) {
     const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SERVICE_SID } = process.env;
 
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_MESSAGING_SERVICE_SID) {
-      console.error("Twilio credentials are not fully configured in the environment variables.");
-      return NextResponse.json({ error: "Twilio integration is not configured." }, { status: 500 });
+      console.error("Messaging integration credentials are not fully configured in the environment variables.");
+      return NextResponse.json({ error: "Messaging integration is not configured." }, { status: 500 });
     }
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const twilioData = await twilioRes.json();
 
     if (!twilioRes.ok) {
-      console.error("Twilio API Error:", twilioData);
+      console.error("Messaging API error:", twilioData);
       return NextResponse.json(
         { results: [{ toolCallId: body.message.toolCalls[0].id, result: `Failed to send SMS to ${to}. Tell the user the message failed to send.` }] }
       );

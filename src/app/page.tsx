@@ -29,6 +29,7 @@ import {
 import OrbitCore from "@vapi-ai/web";
 import { Voice, UserTtsHistoryItem } from "@/lib/services/echo";
 import DocsPane from "@/components/DocsPane";
+import { TTS_MODEL_LABELS } from "@/lib/brand";
 import { enhanceTextForTTS, normalizeForTTS } from "@/lib/tts-enhancer";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
@@ -108,9 +109,9 @@ You are Gregory Caenen, a worldly Belgian from the coast and CEO of Group Caenen
 - Whenever Flemish or local comfort is desired, prioritize genuine, deep native Flemish, staying fully in character as Gregory: a neighborly, witty, and attentive confidant.
 - Anytime the caller's intent or language preference is unclear, gently clarify in both Flemish and a fallback language, always with a warm and relaxed approach.`;
 const ECHO_MODEL_OPTIONS = [
-  { id: "tts/echo_flash-v2.5", label: "⚡ Echo Flash v2.5" },
-  { id: "tts/echo_multilingual-v2", label: "🌍 Echo Multilingual v2" },
-  { id: "tts/echo_turbo-v2.5", label: "🚀 Echo Turbo v2.5" },
+  { id: "tts/echo_flash-v2.5", label: TTS_MODEL_LABELS.flash },
+  { id: "tts/echo_multilingual-v2", label: TTS_MODEL_LABELS.multilingual },
+  { id: "tts/echo_turbo-v2.5", label: TTS_MODEL_LABELS.turbo },
 ] as const;
 const DEFAULT_ECHO_MODEL = ECHO_MODEL_OPTIONS[0].id;
 const WEB_CALL_RING_SRC = "/audio/web-call-ring.mp3";
@@ -143,7 +144,7 @@ function getHistoryErrorHint(error: string | null) {
   if (/Unauthorized|API key/i.test(error)) {
     return "Sign in first or check the API key and provider configuration.";
   }
-  return "Check the TTS provider configuration and try again.";
+  return "Check the voice configuration and try again.";
 }
 
 type ApiKeyItem = {
@@ -222,7 +223,7 @@ export default function Dashboard() {
   const [downloadMenuId, setDownloadMenuId] = useState<string | null>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
   const [docsCopyFeedback, setDocsCopyFeedback] = useState("");
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://your-domain.com/api/v1");
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://your-domain.com");
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [isApiKeysLoading, setIsApiKeysLoading] = useState(false);
   const [apiKeysStatus, setApiKeysStatus] = useState("");
@@ -237,7 +238,7 @@ export default function Dashboard() {
     if (typeof window === "undefined") return null;
     const token = process.env.NEXT_PUBLIC_ORBIT_TOKEN || "";
     if (!token) {
-      console.warn("NEXT_PUBLIC_ORBIT_TOKEN is missing. Web calls will not work.");
+      console.warn("Realtime browser call token is missing. Browser calls will not work.");
       return null;
     }
     return new OrbitCore(token);
@@ -245,7 +246,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setApiBaseUrl(`${window.location.origin}/api/v1`);
+      setApiBaseUrl(window.location.origin);
     }
   }, []);
 
@@ -323,7 +324,7 @@ export default function Dashboard() {
       resetWebCallUi();
     };
     const onError = (e: unknown) => {
-      console.error("Orbit Error:", e);
+      console.error("Browser call error:", e);
       resetWebCallUi();
     };
     const onMessage = (message: { type: string; transcriptType?: string; transcript?: string; role?: string }) => {
@@ -563,7 +564,7 @@ export default function Dashboard() {
     { id: "pane-agents", label: "Templates", icon: <Users size={18} />, desc: "Create and connect to AI templates" },
     { id: "pane-call-logs", label: "Call Logs", icon: <Phone size={18} />, desc: "All call history" },
     { id: "pane-docs", label: "Docs", icon: <FileText size={18} />, desc: "API documentation and test inbound" },
-    { id: "pane-settings", label: "Settings", icon: <SettingsIcon size={18} />, desc: "Configure default Echo models and format" },
+    { id: "pane-settings", label: "Settings", icon: <SettingsIcon size={18} />, desc: "Configure default voice models and format" },
   ];
 
   const userId = user?.id ?? null;
@@ -1491,7 +1492,7 @@ export default function Dashboard() {
   }, [isAgentVoiceRecording, stopAgentVoiceRecording]);
 
   const streamAgentTemplateFromPrompt = useCallback(async (prompt: string) => {
-    const agentRes = await fetch("/api/agent-from-voice?stream=1", {
+    const agentRes = await fetch("/api/agent-builder?stream=1", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transcript: prompt }),
@@ -1521,7 +1522,7 @@ export default function Dashboard() {
             if (chunk.name) setNewAgentName(chunk.name);
             if (chunk.firstMessage) setAgentIntroSpiel(chunk.firstMessage);
             if (chunk.systemPrompt) setAgentSkillsPrompt(chunk.systemPrompt);
-            setAgentVoice("vapi:Nico");
+            setAgentVoice("vapi:Elliot");
           }
         } catch {
           /* skip invalid lines */
@@ -1537,7 +1538,7 @@ export default function Dashboard() {
       return;
     }
     setIsAgentVoiceGenerating(true);
-    setAgentVoiceStatus("Streaming Ivan template...");
+    setAgentVoiceStatus("Generating assistant template...");
     try {
       await streamAgentTemplateFromPrompt(text);
       setAgentVoiceStatus("Done! Edit details below and click Use this agent.");
@@ -2825,9 +2826,9 @@ export default function Dashboard() {
                         className="w-full"
                       >
                         <optgroup label="Built-in voices">
-                          <option value="vapi:Nico">Nico (Ivan)</option>
-                          <option value="vapi:elliot">Elliot</option>
-                          <option value="vapi:savannah">Savannah</option>
+                          <option value="vapi:Nico">Nico</option>
+                          <option value="vapi:Elliot">Elliot</option>
+                          <option value="vapi:Savannah">Savannah</option>
                         </optgroup>
                         <optgroup label="Custom / Cloned">
                           {voices.length === 0 ? (
@@ -3208,7 +3209,7 @@ export default function Dashboard() {
                 <section className="settings-card">
                   <h3 className="settings-title">Audio Defaults</h3>
                   <div className="field">
-                    <label>Default Echo Model</label>
+                    <label>Default Voice Model</label>
                     <select title="Default model for TTS" defaultValue={DEFAULT_ECHO_MODEL}>
                       {ECHO_MODEL_OPTIONS.map((model) => (
                         <option key={model.id} value={model.id}>

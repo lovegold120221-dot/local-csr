@@ -1,3 +1,5 @@
+import { STT_PUBLIC_MODEL, STT_PUBLIC_PROVIDER } from "@/lib/brand";
+
 const DEEPGRAM_API_KEY =
   process.env.DEEPGRAM_API_KEY ||
   process.env.DEEPGRAM_KEY ||
@@ -34,7 +36,7 @@ type DeepgramResponse = {
 
 function getDeepgramApiKey(): string {
   if (!DEEPGRAM_API_KEY) {
-    throw new Error("Missing Deepgram API key. Set DEEPGRAM_API_KEY in .env.");
+    throw new Error("Missing speech recognition API key. Set DEEPGRAM_API_KEY in .env.");
   }
   return DEEPGRAM_API_KEY;
 }
@@ -64,7 +66,7 @@ function getDetectedLanguage(payload: DeepgramResponse): string | null {
 async function parseDeepgramResponse(res: Response): Promise<DeepgramResponse> {
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(errorText || `Deepgram request failed (${res.status})`);
+    throw new Error(errorText || `Speech recognition request failed (${res.status})`);
   }
   return (await res.json()) as DeepgramResponse;
 }
@@ -87,8 +89,8 @@ export async function transcribeWithDeepgramFile(file: File) {
   return {
     text: extractTranscript(payload),
     language: getDetectedLanguage(payload),
-    provider: "deepgram",
-    model: DEEPGRAM_MODEL,
+    provider: STT_PUBLIC_PROVIDER,
+    model: STT_PUBLIC_MODEL,
     raw: payload,
   };
 }
@@ -111,8 +113,8 @@ export async function transcribeWithDeepgramUrl(audioUrl: string) {
   return {
     text: extractTranscript(payload),
     language: getDetectedLanguage(payload),
-    provider: "deepgram",
-    model: DEEPGRAM_MODEL,
+    provider: STT_PUBLIC_PROVIDER,
+    model: STT_PUBLIC_MODEL,
     raw: payload,
   };
 }

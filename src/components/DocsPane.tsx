@@ -13,6 +13,7 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import { STT_PUBLIC_MODEL, STT_PUBLIC_PROVIDER } from "@/lib/brand";
 
 interface DocsPaneProps {
   apiBaseUrl: string;
@@ -33,11 +34,11 @@ type Param = { name: string; type: string; required?: boolean; default?: string 
 const ENDPOINTS = [
   {
     id: "tts",
-    category: "Echo",
+    category: "Voice",
     title: "Text to Speech",
     method: "POST",
-    path: "/echo/tts",
-    fullPath: "/api/echo/tts",
+    path: "/api/voice/tts",
+    fullPath: "/api/voice/tts",
     desc: "Converts text to natural speech. Returns an audio blob (MP3, WAV, or PCM).",
     params: [
       { name: "voiceId", type: "string", required: true, default: "EXAVITQu4vr4xnSDxMaL" },
@@ -48,11 +49,11 @@ const ENDPOINTS = [
     responseStatus: "200 OK",
     responseExample: { type: "audio/mpeg", blob: "BASE64_DATA..." },
     examples: {
-      curl: (base: string) => `curl -X POST "${base}/echo/tts" \\
+      curl: (base: string) => `curl -X POST "${base}/api/voice/tts" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"voiceId":"EXAVITQu4vr4xnSDxMaL","text":"Hello world","modelId":"tts/echo_flash-v2.5","outputFormat":"mp3_44100_128"}'`,
-      js: (base: string) => `const res = await fetch("${base}/echo/tts", {
+      js: (base: string) => `const res = await fetch("${base}/api/voice/tts", {
   method: "POST",
   headers: {
     "Authorization": "Bearer YOUR_API_KEY",
@@ -78,53 +79,64 @@ r = requests.post("${base}/echo/tts", headers={
   },
   {
     id: "stt",
-    category: "Echo",
+    category: "Voice",
     title: "Speech to Text",
     method: "POST",
-    path: "/echo/stt",
-    fullPath: "/api/echo/stt",
-    desc: "Transcribes audio to text with Deepgram.",
+    path: "/api/voice/stt",
+    fullPath: "/api/voice/stt",
+    desc: "Transcribes uploaded audio to text.",
     params: [
-      { name: "url", type: "string", required: true, default: "https://static.deepgram.com/examples/audio.wav" },
+      { name: "file", type: "file", required: true, default: "sample.wav" },
     ] as Param[],
     responseStatus: "200 OK",
-    responseExample: { text: "Hello world", language: "en", provider: "deepgram", model: "nova-3" },
+    responseExample: { text: "Hello world", language: "en", provider: STT_PUBLIC_PROVIDER, model: STT_PUBLIC_MODEL },
     examples: {
-      curl: (base: string) => `curl -X POST "${base}/echo/stt" \\
+      curl: (base: string) => `curl -X POST "${base}/api/voice/stt" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
-  -d '{"url":"https://example.com/audio.wav"}'`,
-      js: (base: string) => `const res = await fetch("${base}/echo/stt", {
+  -F "file=@sample.wav"`,
+      js: (base: string) => `const formData = new FormData();
+formData.append("file", fileInput.files[0]);
+const res = await fetch("${base}/api/voice/stt", {
   method: "POST",
-  body: JSON.stringify({ url: "..." })
+  headers: { "Authorization": "Bearer YOUR_API_KEY" },
+  body: formData
 });`,
-      py: (base: string) => `r = requests.post("${base}/echo/stt", json={"url": "..."})`,
+      py: (base: string) => `import requests
+with open("sample.wav", "rb") as audio_file:
+    r = requests.post("${base}/api/voice/stt", headers={
+        "Authorization": "Bearer YOUR_API_KEY"
+    }, files={"file": audio_file})`,
     },
   },
   {
     id: "assistants",
-    category: "Templates",
-    title: "List Templates",
+    category: "Agents",
+    title: "List Assistants",
     method: "GET",
-    path: "/orbit/assistants",
-    fullPath: "/api/orbit/assistants",
-    desc: "Returns all configured templates.",
+    path: "/api/agents",
+    fullPath: "/api/agents",
+    desc: "Returns all configured assistants.",
     params: [],
     responseStatus: "200 OK",
     responseExample: { assistants: [{ id: "asst_xxx", name: "..." }] },
     examples: {
-      curl: (base: string) => `curl -H "Authorization: Bearer YOUR_API_KEY" "${base}/orbit/assistants"`,
-      js: (base: string) => `const res = await fetch("${base}/orbit/assistants");`,
-      py: (base: string) => `r = requests.get("${base}/orbit/assistants")`,
+      curl: (base: string) => `curl -H "Authorization: Bearer YOUR_API_KEY" "${base}/api/agents"`,
+      js: (base: string) => `const res = await fetch("${base}/api/agents", {
+  headers: { "Authorization": "Bearer YOUR_API_KEY" }
+});`,
+      py: (base: string) => `r = requests.get("${base}/api/agents", headers={
+    "Authorization": "Bearer YOUR_API_KEY"
+})`,
     },
   },
   {
     id: "call",
     category: "Calls",
-    title: "Create Outbound Call",
+    title: "Start Outbound Call",
     method: "POST",
-    path: "/orbit/call",
-    fullPath: "/api/orbit/call",
-    desc: "Initiates an outbound phone call from an AI assistant.",
+    path: "/api/calls/outbound",
+    fullPath: "/api/calls/outbound",
+    desc: "Initiates an outbound phone call from an assistant.",
     params: [
       { name: "assistantId", type: "string", required: true, default: "019c51ea-8ce8-4962-9b83-70023ec0d6c2" },
       { name: "customerNumber", type: "string", required: true, default: "+15551234567" },
@@ -132,11 +144,11 @@ r = requests.post("${base}/echo/tts", headers={
     responseStatus: "201 Created",
     responseExample: { id: "call_019c...", status: "ringing", type: "outboundPhoneCall" },
     examples: {
-      curl: (base: string) => `curl -X POST "${base}/orbit/call" \\
+      curl: (base: string) => `curl -X POST "${base}/api/calls/outbound" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"assistantId":"019c51ea-8ce8-4962-9b83-70023ec0d6c2","customerNumber":"+15551234567"}'`,
-      js: (base: string) => `const res = await fetch("${base}/orbit/call", {
+      js: (base: string) => `const res = await fetch("${base}/api/calls/outbound", {
   method: "POST",
   headers: {
     "Authorization": "Bearer YOUR_API_KEY",
@@ -157,29 +169,24 @@ r = requests.post("${base}/orbit/call", headers={
     },
   },
   {
-    id: "inbound",
+    id: "calls",
     category: "Calls",
-    title: "Test Inbound Call",
-    method: "POST",
-    path: "/orbit/calls",
-    fullPath: "/api/orbit/calls",
-    desc: "Simulates or handles an inbound call event.",
-    params: [
-      { name: "assistantId", type: "string", required: true, default: "019c51ea-8ce8-4962-9b83-70023ec0d6c2" },
-      { name: "customerNumber", type: "string", required: false, default: "+15550009999" },
-    ] as Param[],
+    title: "List Calls",
+    method: "GET",
+    path: "/api/calls",
+    fullPath: "/api/calls",
+    desc: "Returns recent call records.",
+    params: [] as Param[],
     responseStatus: "200 OK",
-    responseExample: { success: true, message: "Inbound session simulated" },
+    responseExample: [{ id: "call_019c...", status: "completed", type: "webCall" }],
     examples: {
-      curl: (base: string) => `curl -X POST "${base}/orbit/calls" \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -d '{"assistantId":"019c51ea-8ce8-4962-9b83-70023ec0d6c2"}'`,
-      js: (base: string) => `await fetch("${base}/orbit/calls", {
-  method: "POST",
-  headers: { "Authorization": "Bearer YOUR_API_KEY" },
-  body: JSON.stringify({ assistantId: "..." })
+      curl: (base: string) => `curl -H "Authorization: Bearer YOUR_API_KEY" "${base}/api/calls"`,
+      js: (base: string) => `await fetch("${base}/api/calls", {
+  headers: { "Authorization": "Bearer YOUR_API_KEY" }
 });`,
-      py: (base: string) => `requests.post("${base}/orbit/calls", json={"assistantId": "..."})`,
+      py: (base: string) => `requests.get("${base}/api/calls", headers={
+    "Authorization": "Bearer YOUR_API_KEY"
+})`,
     },
   },
 ] as const;
@@ -234,6 +241,7 @@ export default function DocsPane({
     e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.path.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const selectedEndpointUrl = `${apiBaseUrl}${selectedEndpoint.path}`;
 
   return (
     <div className="docs-playground">
@@ -250,8 +258,8 @@ export default function DocsPane({
         </div>
         <div className="docs-pg-sidebar-content scroll-soft">
           <div className="docs-pg-group">
-            <div className="docs-pg-group-title">API Documentation</div>
-            {filteredEndpoints.filter(e => e.category === "Echo").map(ep => (
+            <div className="docs-pg-group-title">Voice APIs</div>
+            {filteredEndpoints.filter(e => e.category === "Voice").map(ep => (
               <button
                 key={ep.id}
                 className={`docs-pg-item ${selectedId === ep.id ? "active" : ""}`}
@@ -264,8 +272,8 @@ export default function DocsPane({
           </div>
 
           <div className="docs-pg-group">
-            <div className="docs-pg-group-title">Test Inbound & Calls</div>
-            {filteredEndpoints.filter(e => ["Templates", "Calls"].includes(e.category)).map(ep => (
+            <div className="docs-pg-group-title">Agents & Calls</div>
+            {filteredEndpoints.filter(e => ["Agents", "Calls"].includes(e.category)).map(ep => (
               <button
                 key={ep.id}
                 className={`docs-pg-item ${selectedId === ep.id ? "active" : ""}`}
@@ -284,7 +292,7 @@ export default function DocsPane({
         <div className="docs-pg-header">
           <div className="docs-pg-url-bar">
             <span className={`docs-pg-method-badge docs-pg-method-${selectedEndpoint.method.toLowerCase()}`}>{selectedEndpoint.method}</span>
-            <code className="docs-pg-url-path">{apiBaseUrl}{selectedEndpoint.path}</code>
+            <code className="docs-pg-url-path">{selectedEndpointUrl}</code>
           </div>
           <button 
             className="btn primary docs-pg-send-btn"
@@ -355,7 +363,7 @@ export default function DocsPane({
         </div>
 
         <div className="docs-pg-section">
-          <h3 className="docs-pg-section-title">Request Body / Params</h3>
+          <h3 className="docs-pg-section-title">Request</h3>
           {selectedEndpoint.params && selectedEndpoint.params.length > 0 ? (
             <div className="docs-pg-params-box">
               <span className="docs-pg-params-count">{selectedEndpoint.params.length} properties</span>
@@ -383,7 +391,7 @@ export default function DocsPane({
 
         <div className="docs-pg-footer">
           <button className="docs-pg-clear" onClick={() => { setLastResponse(null); setLastStatus(null); }}>Clear</button>
-          <a href="#" className="docs-pg-ref-link">Docs <Maximize2 size={12} /></a>
+          <a href={selectedEndpointUrl} className="docs-pg-ref-link" target="_blank" rel="noreferrer">Open endpoint <Maximize2 size={12} /></a>
         </div>
       </main>
 
