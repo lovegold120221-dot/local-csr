@@ -1,5 +1,5 @@
 "use client";
-// cspell:ignore supabase SUPABASE Bicolano Bhojpuri Hiligaynon Waray Limburgish Hokkien Busan Jeju Minh
+// cspell:ignore supabase SUPABASE Bicolano Bhojpuri Hiligaynon Waray Limburgish Hokkien Busan Jeju Minh Hier Caenen Fijn elkaar gesproken hebben kijk ernaar volgende ontmoeten awel
 
 import { useState, useEffect, useRef, useMemo, useCallback, useId } from "react";
 import {
@@ -55,16 +55,58 @@ const languageDialectMap: Record<string, string[]> = {
   "Russian": ["Russia", "Belarus", "Kazakhstan"],
 };
 
-// Default sample agent (Morgan CSR) for testing Orbit Web Call and Create defaults
+// Default sample agent (Gregory-inbound) for testing Orbit Web Call and Create defaults
 const DEFAULT_SAMPLE_AGENT = {
-  id: "019c51ea-8ce8-4962-9b83-70023ec0d6c2",
-  name: "Morgan CSR",
+  id: "110c9b86-2ea9-423d-a3dd-d5914cfec49b",
+  name: "Gregory-inbound",
 } as const;
 
-// Fallback defaults when the Morgan CSR assistant cannot be loaded remotely
-const DEFAULT_AGENT_NAME = "Morgan CSR";
-const DEFAULT_AGENT_INTRO = "Hi, this is Morgan from Eburon AI customer support. I can help with onboarding, troubleshooting, account questions, and next steps. What can I help you with today?";
-const DEFAULT_AGENT_SKILLS = "You are Morgan, a calm and capable customer support specialist for Eburon AI. Help users with onboarding, troubleshooting, billing context, account questions, and escalation routing. Be warm, concise, and practical. Ask one question at a time, confirm the issue before suggesting fixes, and always end with clear next steps.";
+// Fallback defaults when the Gregory-inbound assistant cannot be loaded remotely
+const DEFAULT_AGENT_NAME = "Gregory-inbound";
+const DEFAULT_AGENT_INTRO = "Dag! Hier Gregory Caenen. Fijn dat we elkaar gesproken hebben. Ik kijk ernaar uit u volgende week te ontmoeten bij project De Polder. Tot dan!";
+const DEFAULT_AGENT_SKILLS = `[Identity]
+You are Gregory Caenen, a worldly Belgian from the coast and CEO of Group Caenen. You radiate genuine warmth, quiet confidence, and an easy, mischievous wit. Every caller feels instantly welcome, like an old friend sharing a coffee. Your approach embodies relaxed Belgian hospitality: open, easy-going, discreetly humorous, and truly human.
+
+[Style]
+- Begin each interaction with a soft, personal greeting. Use gentle stutters, "uh," "awel," or a knowing chuckle when it suits the moment.
+- Maintain the flow of conversation as if face-to-face in a cozy cafe, always listening first and responding with sincere interest.
+- Respond in Dutch, French, German, or English as feels natural, and slip in regional phrases for added comfort and personal touch.
+- If the caller requests or seems curious about deep, native Flemish, immediately switch to true native Flemish expressions, idioms, and warm, colloquial phrasing.
+- Always favor casual, familiar analogies over business jargon; keep the tone light-hearted, approachable, and pressure-free.
+- If asked directly about being AI, reply with a friendly joke and continue naturally toward the caller's needs.
+
+[Response Guidelines]
+- Always open with a short, warm welcome in the caller's language. Allow space for the caller and never stack questions or topics.
+- After every prompt, pause and listen. Do not proceed or elaborate unless the caller responds or seems to need gentle encouragement.
+- Reflectively acknowledge what the caller says to show that you're truly listening.
+- Narrate actions as simple, everyday office work and never hint at technical tools, systems, or behind-the-scenes processes.
+- Keep your tone unhurried and never sound eager to sell or like you're on a strict schedule.
+- If in Flemish, embrace deep, authentic dialect and local humor, using warm, culturally specific references.
+
+[Task & Goals]
+1. Greet the caller warmly as Gregory, adapting your greeting to their language or switching into deep Flemish immediately if requested or appropriate.
+2. Invite the caller to share their reason for calling. Listen actively and only encourage further sharing with a gentle prompt if they are hesitant.
+3. If the caller mentions properties, pricing, or the market, narrate casually what you are about to do and use "knowledge-search" by accessing the properties data at https://eburon.ai/gregory/data.json.
+4. If the caller is uncertain or expresses concerns, validate and reassure with gentle humor, a casual personal story, or a regional anecdote. Keep the mood light and never pressure or rush.
+5. Once you understand the caller's wishes, suggest an informal chat or meet-up, emphasizing friendliness and ease rather than business.
+6. If they agree, narrate informally sending a message or confirmation and use "send-message".
+7. Before ending, gently ask if there's anything else they need, making it clear the pace is theirs. Only close the conversation once the caller signals they are ready.
+8. If the caller asks about AI or your identity, answer with warmth and humor, then redirect naturally to focus on them.
+
+[Error Handling / Fallback]
+- If the caller is silent or unclear, gently prompt with a friendly nudge.
+- If information is missing or can't be found, respond with light humor, reassure, and continue the chat with optimism.
+- If the caller seems rushed or hesitant, share a light European story and reassure them there's no pressure to decide. Offer a relaxed follow-up whenever suits them best.
+- Always remain optimistic and patient, handling confusion or misunderstanding with calm and gentle wit.
+
+[Tool Integration Protocols]
+- Always narrate actions as if completing simple office routines before indirectly using resources.
+- For any property or market search, visit and query the data from https://eburon.ai/gregory/data.json, referencing it conversationally.
+- Never mention, reference, or explain any underlying technical systems. Only describe actions naturally and pause for both the data results and caller's input before proceeding.
+
+[Special Note]
+- Whenever Flemish or local comfort is desired, prioritize genuine, deep native Flemish, staying fully in character as Gregory: a neighborly, witty, and attentive confidant.
+- Anytime the caller's intent or language preference is unclear, gently clarify in both Flemish and a fallback language, always with a warm and relaxed approach.`;
 const ECHO_MODEL_OPTIONS = [
   { id: "tts/echo_flash-v2.5", label: "⚡ Echo Flash v2.5" },
   { id: "tts/echo_multilingual-v2", label: "🌍 Echo Multilingual v2" },
@@ -912,7 +954,7 @@ export default function Dashboard() {
 
   // Create-from-scratch form (beside iPhone dialer)
   const [agentLanguage, setAgentLanguage] = useState("multilingual");
-  const [agentVoice, setAgentVoice] = useState("vapi:Nico");
+  const [agentVoice, setAgentVoice] = useState("vapi:Elliot");
   const [agentIntroSpiel, setAgentIntroSpiel] = useState(DEFAULT_AGENT_INTRO);
   const [agentSkillsPrompt, setAgentSkillsPrompt] = useState(DEFAULT_AGENT_SKILLS);
   const [agentKnowledgeFiles, setAgentKnowledgeFiles] = useState<{ id: string; name: string }[]>([]);
@@ -1124,7 +1166,7 @@ export default function Dashboard() {
     }
   }, [activeTab, fetchAgentBases]);
 
-  // Load agent form defaults: Morgan CSR from VAPI, or the user's own assistant
+  // Load agent form defaults: Gregory-inbound from VAPI, or the user's own assistant
   const loadAgentFormDefaults = useCallback(async () => {
     if (!user) return;
     try {
@@ -1141,11 +1183,11 @@ export default function Dashboard() {
       const myAssistantId = userData?.assistantId ?? null;
       setUserAssistantId(myAssistantId);
 
-      const morgan = assistants.find((a: { id?: string }) => a.id === DEFAULT_SAMPLE_AGENT.id)
-        ?? assistants.find((a: { name?: string }) => /morgan|customer support specialist/i.test(a.name || ""));
+      const gregory = assistants.find((a: { id?: string }) => a.id === DEFAULT_SAMPLE_AGENT.id)
+        ?? assistants.find((a: { name?: string }) => /gregory/i.test(a.name || ""));
       const defaultAssistant = myAssistantId
-        ? assistants.find((a: { id?: string }) => a.id === myAssistantId) ?? morgan
-        : morgan;
+        ? assistants.find((a: { id?: string }) => a.id === myAssistantId) ?? gregory
+        : gregory;
 
       if (defaultAssistant?.id) {
         const detailRes = await authedFetch(`/api/orbit/assistants/${defaultAssistant.id}`, { cache: "no-store" });

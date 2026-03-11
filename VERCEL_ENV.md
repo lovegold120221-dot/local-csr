@@ -1,3 +1,4 @@
+<!-- cspell:ignore LIVEKIT -->
 # Vercel Environment Variables
 
 Copy these **exact** variable names into your Vercel project (Settings → Environment Variables). Fill in your own values.
