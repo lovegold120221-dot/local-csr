@@ -2917,10 +2917,12 @@ export default function Dashboard() {
                         onChange={(e) => setAgentVoice(e.target.value)}
                         className="w-full"
                       >
-                        <optgroup label="Built-in voices">
-                          <option value="vapi:Nico">Nico</option>
-                          <option value="vapi:Elliot">Elliot</option>
-                          <option value="vapi:Savannah">Savannah</option>
+                        <optgroup label="VAPI Voices">
+                          {voices.filter(v => (v as Record<string, unknown>).provider === 'vapi' || String((v as Record<string, unknown>).provider).includes('vapi')).map((v) => (
+                            <option key={v.voice_id} value={`vapi:${v.voice_id}`}>
+                              {v.name}
+                            </option>
+                          ))}
                         </optgroup>
                       </select>
                     </div>
