@@ -101,17 +101,17 @@ export type VapiVoice = {
 
 export async function fetchVoices(): Promise<VapiVoice[]> {
   if (!getOrbitSecret()) return [];
-  const raw = await orbitCoreRequest('GET', '/voice-library/vapi');
+   const raw = await orbitCoreRequest('GET', '/voice-library/vapi');
   if (Array.isArray(raw)) {
     // Filter out deleted voices and map to expected format
     return raw
-      .filter((voice: any) => !voice.isDeleted)
-      .map((voice: any) => ({
-        voice_id: voice.providerId,
-        name: voice.name,
-        provider: voice.provider,
-        description: voice.description,
-        preview_url: voice.previewUrl,
+      .filter((voice: { isDeleted?: boolean; providerId?: string }) => !voice.isDeleted && voice.providerId)
+      .map((voice: { providerId?: string; name?: string; provider?: string; description?: string; previewUrl?: string; gender?: string; accent?: string }) => ({
+        voice_id: voice.providerId as string,
+        name: voice.name ?? '',
+        provider: voice.provider ?? '',
+        description: voice.description ?? '',
+        preview_url: voice.previewUrl ?? '',
         category: voice.gender || 'default',
         labels: {
           gender: voice.gender || '',
@@ -264,6 +264,7 @@ export type VapiAssistant = {
   transcriber?: { language?: string };
   clientMessages?: string[];
   serverMessages?: string[];
+  phoneNumberId?: string;
   [key: string]: unknown;
 };
 
@@ -280,6 +281,7 @@ export async function updateAssistant(id: string, payload: Partial<{
   transcriber: AssistantTranscriberConfig;
   clientMessages: string[];
   serverMessages: string[];
+  phoneNumberId: string;
 }>) {
   return orbitCoreRequest('PATCH', `/assistant/${id}`, payload) as Promise<VapiAssistant>;
 }

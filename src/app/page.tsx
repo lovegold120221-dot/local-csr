@@ -26,7 +26,8 @@ import {
   Minimize2,
   Pencil,
   Trash2,
-  Zap
+  Zap,
+  UserCircle
 } from "lucide-react";
 
 import OrbitCore from "@vapi-ai/web";
@@ -171,7 +172,6 @@ type ApiUsageSummary = {
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("pane-audio");
   const [audioSubTab, setAudioSubTab] = useState<"voices" | "tts" | "stt" | "history">("voices");
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceFilterCategory, setVoiceFilterCategory] = useState<string>("all");
   const [voiceFilterLanguage, setVoiceFilterLanguage] = useState<string>("all");
@@ -235,6 +235,13 @@ export default function Dashboard() {
   const [apiUsageSummary, setApiUsageSummary] = useState<ApiUsageSummary | null>(null);
   const webCallRingAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingWebCallStartRef = useRef<symbol | null>(null);
+
+  // Audio defaults settings (persisted to localStorage)
+  const [settingsModel, setSettingsModel] = useState<string>(DEFAULT_ECHO_MODEL);
+  const [settingsOutputFormat, setSettingsOutputFormat] = useState("mp3_44100_128");
+  const [settingsStability, setSettingsStability] = useState(0.5);
+  const [settingsSimilarity, setSettingsSimilarity] = useState(0.7);
+  const [settingsSaved, setSettingsSaved] = useState(false);
 
   // Initialize OrbitCore inside the component for better React integration
   const orbit = useMemo(() => {
@@ -314,6 +321,16 @@ export default function Dashboard() {
     const isLight = savedTheme === "light";
     document.documentElement.classList.toggle("light-mode", isLight);
     document.body.classList.toggle("light-mode", isLight);
+
+    // Restore audio defaults from localStorage
+    const savedModel = localStorage.getItem("echo-model");
+    if (savedModel && ECHO_MODEL_OPTIONS.some(m => m.id === savedModel)) setSettingsModel(savedModel);
+    const savedFormat = localStorage.getItem("echo-output-format");
+    if (savedFormat) setSettingsOutputFormat(savedFormat);
+    const savedStability = localStorage.getItem("echo-stability");
+    if (savedStability) setSettingsStability(parseFloat(savedStability));
+    const savedSimilarity = localStorage.getItem("echo-similarity");
+    if (savedSimilarity) setSettingsSimilarity(parseFloat(savedSimilarity));
 
     if (!orbit) return;
 
@@ -564,13 +581,12 @@ export default function Dashboard() {
     { id: "pane-audio", label: "Audio", icon: <Volume2 size={18} />, desc: "Voices, Text to Speech, Speech to Text, History" },
     { id: "pane-clone", label: "Clone", icon: <Copy size={18} />, desc: "Instantly clone voices with full metadata tagging" },
     { id: "pane-Create", label: "Create", icon: <Mic size={18} />, desc: "Describe your agent with voice or text" },
+    { id: "pane-my-agents", label: "My Agents", icon: <UserCircle size={18} />, desc: "Manage your personal AI agents" },
     { id: "pane-agents", label: "Templates", icon: <Users size={18} />, desc: "Create and connect to AI templates" },
     { id: "pane-call-logs", label: "Call Logs", icon: <Phone size={18} />, desc: "All call history" },
     { id: "pane-docs", label: "Docs", icon: <FileText size={18} />, desc: "API documentation and test inbound" },
     { id: "pane-settings", label: "Settings", icon: <SettingsIcon size={18} />, desc: "Configure default voice models and format" },
   ];
-
-  const userId = user?.id ?? null;
 
   const loadVoicesAndModels = useCallback(async () => {
     // Only fetch VAPI voices
@@ -682,8 +698,10 @@ export default function Dashboard() {
         body: JSON.stringify({
           voiceId: selectedVoice,
           text: ttsText,
-          modelId: "tts/echo_flash-v2.5",
-          outputFormat: "mp3_44100_128"
+          modelId: settingsModel,
+          outputFormat: settingsOutputFormat,
+          stability: settingsStability,
+          similarityBoost: settingsSimilarity,
         }),
       });
 
@@ -1220,19 +1238,28 @@ export default function Dashboard() {
   const fetchUserAgents = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await authedFetch("/api/orbit/assistants", { cache: "no-store" });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        const myAgents = data.filter((a: { userId?: string }) => a.userId === user.id);
-        setUserAgents(myAgents);
+      // Get user's own assistant ID from Supabase, then enrich with VAPI data
+      const [userRes, agentsRes] = await Promise.all([
+        authedFetch("/api/user-assistant", { cache: "no-store" }),
+        authedFetch("/api/orbit/assistants", { cache: "no-store" }),
+      ]);
+      const userData = await userRes.json();
+      const agentsData = await agentsRes.json();
+      const myAssistantId: string | null = userData?.assistantId ?? null;
+      if (!myAssistantId) {
+        setUserAgents([]);
+        return;
       }
+      const allAgents = Array.isArray(agentsData) ? agentsData : [];
+      const myAgent = allAgents.find((a: { id?: string }) => a.id === myAssistantId);
+      setUserAgents(myAgent ? [myAgent] : [{ id: myAssistantId }]);
     } catch (error) {
       console.error("Failed to fetch user agents:", error);
     }
   }, [authedFetch, user]);
 
   useEffect(() => {
-    if ((activeTab === "pane-agents" || activeTab === "pane-Create") && user) {
+    if ((activeTab === "pane-agents" || activeTab === "pane-Create" || activeTab === "pane-my-agents") && user) {
       loadAgentFormDefaults();
       fetchUserAgents();
     }
@@ -1512,7 +1539,7 @@ export default function Dashboard() {
       setAgentVoiceStatus("Error: " + (err instanceof Error ? err.message : "Microphone access denied"));
       setIsAgentVoiceRecording(false);
     }
-  }, [isAgentVoiceRecording, stopAgentVoiceRecording, selectedVoice, voices]);
+  }, [isAgentVoiceRecording, stopAgentVoiceRecording]);
 
   const streamAgentTemplateFromPrompt = useCallback(async (prompt: string) => {
     const agentRes = await fetch("/api/agent-builder?stream=1", {
@@ -1545,7 +1572,6 @@ export default function Dashboard() {
             if (chunk.name) setNewAgentName(chunk.name);
             if (chunk.firstMessage) setAgentIntroSpiel(chunk.firstMessage);
             if (chunk.systemPrompt) setAgentSkillsPrompt(chunk.systemPrompt);
-            const selectedVoiceObj = voices.find(v => v.voice_id === selectedVoice);
             setAgentVoice(`vapi:${selectedVoice}`);
           }
         } catch {
@@ -1553,7 +1579,7 @@ export default function Dashboard() {
         }
       }
     }
-  }, []);
+  }, [selectedVoice]);
 
   const handleAgentVoiceGenerate = useCallback(async () => {
     const text = agentVoiceDescription.trim();
@@ -2224,8 +2250,8 @@ export default function Dashboard() {
                   {/* Right Pane: Settings */}
                   <div className="el-tts-right">
                     <div className="el-settings-tabs">
-                      <button className="el-settings-tab active">Settings</button>
-                      <button className="el-settings-tab">History</button>
+                      <button className={`el-settings-tab ${(audioSubTab as string) === "tts" ? "active" : ""}`} onClick={() => setAudioSubTab("tts")}>Settings</button>
+                      <button className={`el-settings-tab ${(audioSubTab as string) === "history" ? "active" : ""}`} onClick={() => { setAudioSubTab("history"); fetchRealTimeHistory(); }}>History</button>
                     </div>
 
                     <div className="el-settings-content">
@@ -2252,7 +2278,17 @@ export default function Dashboard() {
 
                       <div className="el-field-group">
                         <label className="el-label">Model</label>
-                        <div className="el-select-fake">{ECHO_MODEL_OPTIONS[0].label}</div>
+                        <select
+                          className="el-select"
+                          value={settingsModel}
+                          onChange={(e) => setSettingsModel(e.target.value)}
+                          title="Select TTS model"
+                          aria-label="Select TTS model"
+                        >
+                          {ECHO_MODEL_OPTIONS.map((m) => (
+                            <option key={m.id} value={m.id}>{m.label}</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="el-field-group el-field-group-preview">
@@ -2332,7 +2368,7 @@ export default function Dashboard() {
                             <div className="history-card-text" title={h.text}>{h.text}</div>
                             <div className="history-card-meta">
                               <span className="voice-pill">{h.voice_name}</span>
-                              <span className="history-card-date">{new Date(h.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="history-card-date">{new Date(h.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
                           </div>
                           <div className="history-card-actions">
@@ -2397,7 +2433,7 @@ export default function Dashboard() {
                 <textarea
                   id="sttOutput"
                   readOnly
-                  placeholder=""
+                  placeholder="Transcript will appear here…"
                   value={sttOutput}
                 ></textarea>
               </div>
@@ -2751,7 +2787,7 @@ export default function Dashboard() {
                               onClick={digit === "0" ? undefined : () => setDialerNumber((n) => (n + digit).slice(0, 15))}
                               onPointerDown={digit === "0" ? () => handleDialKeyDown(digit) : undefined}
                               onPointerUp={digit === "0" ? () => handleDialKeyUp(digit) : undefined}
-                              onPointerLeave={digit === "0" ? () => { if (longPress0Ref.current) { clearTimeout(longPress0Ref.current); longPress0Ref.current = null; } } : undefined}
+                              onPointerLeave={digit === "0" ? () => { if (longPress0Ref.current) { clearTimeout(longPress0Ref.current); longPress0Ref.current = null; } longPress0HandledRef.current = false; } : undefined}
                             >
                               {digit === "0" ? (
                                 <span className="dialer-key-0"><span>0</span><span className="dialer-key-plus">+</span></span>
@@ -2826,9 +2862,19 @@ export default function Dashboard() {
                         )}
                         {phonebookEntries.length > 0 && (
                           <div className="phonebook-list">
-                            <div className="phonebook-header text-2xs text-faint">{phonebookEntries.length} contacts</div>
+                            <div className="phonebook-header text-2xs text-faint flex items-center justify-between">
+                              <span>{phonebookEntries.length} contacts</span>
+                              <button
+                                type="button"
+                                className="text-2xs text-bad bg-transparent hover:text-white"
+                                onClick={() => setPhonebookEntries([])}
+                                title="Clear all contacts"
+                              >
+                                Clear all
+                              </button>
+                            </div>
                             <div className="phonebook-scroll">
-                              {phonebookEntries.slice(0, 8).map((p, i) => (
+                              {phonebookEntries.map((p, i) => (
                                 <div
                                   key={i}
                                   className="phonebook-row"
@@ -2836,6 +2882,15 @@ export default function Dashboard() {
                                 >
                                   <span>{p.name}</span>
                                   <span className="text-lime">{p.number}</span>
+                                  <button
+                                    type="button"
+                                    className="ml-auto text-faint hover:text-bad bg-transparent text-sm leading-none"
+                                    onClick={(e) => { e.stopPropagation(); setPhonebookEntries(prev => prev.filter((_, idx) => idx !== i)); }}
+                                    title="Remove contact"
+                                    aria-label="Remove contact"
+                                  >
+                                    ×
+                                  </button>
                                 </div>
                               ))}
                             </div>
@@ -2993,8 +3048,8 @@ export default function Dashboard() {
                         Edit again
                       </button>
                     </div>
-                    {agentStatus.startsWith("Error") && (
-                      <span className="text-xs block mt-2 text-bad">{agentStatus}</span>
+                    {agentStatus && (
+                      <span className={`text-xs block mt-2 ${agentStatus.startsWith("Error") ? "text-bad" : "text-lime"}`}>{agentStatus}</span>
                     )}
                   </div>
                 </div>
@@ -3057,7 +3112,19 @@ export default function Dashboard() {
                   {callStatus === "active" ? (
                     <div className="flex flex-col items-center gap-2">
                       <div className="status-dot ok animate-pulse"></div>
-                      <div className="text-lime">Session Active: {activeAgentId}</div>
+                      <div className="text-lime">Session Active: {getAgentName(activeAgentId)}</div>
+                      <button
+                        type="button"
+                        className="btn danger flex items-center gap-1.5 py-1 px-3 text-2xs mt-1"
+                        onClick={() => {
+                          pendingWebCallStartRef.current = null;
+                          stopWebCallRing();
+                          orbit?.stop();
+                        }}
+                      >
+                        <PhoneOff size={12} />
+                        End call
+                      </button>
                     </div>
                   ) : (
                     "No active call"
@@ -3163,6 +3230,19 @@ export default function Dashboard() {
 
           {activeTab === "pane-call-logs" && (
             <div className="tab-pane active tab-pane-full-height">
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <span />
+                <button
+                  type="button"
+                  className="btn flex items-center gap-1.5 text-2xs py-1.5 px-3"
+                  onClick={fetchCallLogs}
+                  disabled={isCallLogsLoading}
+                  title="Refresh call logs"
+                >
+                  {isCallLogsLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Refresh
+                </button>
+              </div>
               {callLogPlaybackError && (
                 <div className="mb-4 p-3 rounded border border-red-500/50 bg-red-500/10 text-red-200 text-2xs">
                   {callLogPlaybackError}
@@ -3348,7 +3428,11 @@ export default function Dashboard() {
                   <h3 className="settings-title">Audio Defaults</h3>
                   <div className="field">
                     <label>Default Voice Model</label>
-                    <select title="Default model for TTS" defaultValue={DEFAULT_ECHO_MODEL}>
+                    <select
+                      title="Default model for TTS"
+                      value={settingsModel}
+                      onChange={(e) => setSettingsModel(e.target.value)}
+                    >
                       {ECHO_MODEL_OPTIONS.map((model) => (
                         <option key={model.id} value={model.id}>
                           {model.label}
@@ -3358,22 +3442,56 @@ export default function Dashboard() {
                   </div>
                   <div className="field">
                     <label>Output Format</label>
-                    <select title="Default audio output format">
-                      <option>mp3_44100_128</option>
-                      <option>wav_44100</option>
-                      <option>pcm_24000</option>
+                    <select
+                      title="Default audio output format"
+                      value={settingsOutputFormat}
+                      onChange={(e) => setSettingsOutputFormat(e.target.value)}
+                    >
+                      <option value="mp3_44100_128">MP3 44.1kHz 128kbps</option>
+                      <option value="mp3_44100_192">MP3 44.1kHz 192kbps</option>
+                      <option value="wav_44100">WAV 44.1kHz</option>
+                      <option value="pcm_24000">PCM 24kHz</option>
                     </select>
                   </div>
                   <div className="field">
-                    <label>Stability (TTS)</label>
-                    <input type="range" min="0" max="1" step="0.1" defaultValue="0.5" title="Adjust voice stability" />
+                    <label>Stability (TTS) — {settingsStability.toFixed(1)}</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={settingsStability}
+                      onChange={(e) => setSettingsStability(parseFloat(e.target.value))}
+                      title="Adjust voice stability"
+                    />
                   </div>
                   <div className="field">
-                    <label>Similarity Boost (TTS)</label>
-                    <input type="range" min="0" max="1" step="0.1" defaultValue="0.7" title="Adjust voice similarity" />
+                    <label>Similarity Boost (TTS) — {settingsSimilarity.toFixed(1)}</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={settingsSimilarity}
+                      onChange={(e) => setSettingsSimilarity(parseFloat(e.target.value))}
+                      title="Adjust voice similarity"
+                    />
                   </div>
-                  <div className="mt-4">
-                    <button className="btn primary" onClick={() => alert("Settings saved locally (Simulated)")}>Save Settings</button>
+                  <div className="mt-4 flex items-center gap-3">
+                    <button
+                      className="btn primary"
+                      onClick={() => {
+                        localStorage.setItem("echo-model", settingsModel);
+                        localStorage.setItem("echo-output-format", settingsOutputFormat);
+                        localStorage.setItem("echo-stability", String(settingsStability));
+                        localStorage.setItem("echo-similarity", String(settingsSimilarity));
+                        setSettingsSaved(true);
+                        setTimeout(() => setSettingsSaved(false), 2000);
+                      }}
+                    >
+                      Save Settings
+                    </button>
+                    {settingsSaved && <span className="text-xs text-lime">Saved.</span>}
                   </div>
                 </section>
 
@@ -3469,7 +3587,101 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!["pane-audio", "pane-clone", "pane-Create", "pane-agents", "pane-call-logs", "pane-docs", "pane-settings"].includes(activeTab) && (
+          {activeTab === "pane-my-agents" && (
+            <div className="tab-pane active tab-pane-full-height">
+              <div className="flex items-center justify-between mb-6">
+                <label className="block text-sm font-semibold">My Agents</label>
+                <button
+                  type="button"
+                  className="btn flex items-center gap-1.5 text-2xs py-1.5 px-3"
+                  onClick={fetchUserAgents}
+                  title="Refresh"
+                >
+                  <RefreshCw size={14} />
+                  Refresh
+                </button>
+              </div>
+              {!user ? (
+                <div className="placeholder-pane h-40 flex items-center justify-center text-muted text-sm">
+                  Sign in to view your agents.
+                </div>
+              ) : userAgents.length === 0 ? (
+                <div className="placeholder-pane h-40 flex flex-col items-center justify-center gap-3 text-muted text-sm">
+                  <Users size={32} className="opacity-30" />
+                  <span>No agents yet — go to <button className="text-lime underline bg-transparent" onClick={() => setActiveTab("pane-Create")}>Create</button> to build one.</span>
+                </div>
+              ) : (
+                <div className="space-y-3 max-w-[760px]">
+                  {userAgents.map((agent) => (
+                    <div key={agent.id} className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 transition-colors">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-lime/10 border border-lime/20 flex items-center justify-center">
+                        <UserCircle size={20} className="text-lime" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{agent.name || "Unnamed Agent"}</div>
+                        <div className="text-2xs text-faint truncate mt-0.5">
+                          {agent.firstMessage || "No first message set"}
+                        </div>
+                        <div className="text-2xs text-faint/50 mt-0.5 font-mono">ID: {agent.id.slice(0, 12)}…</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          className={`btn flex items-center gap-1.5 py-1.5 px-3 text-2xs ${callStatus === "active" && activeAgentId === agent.id ? "text-bad" : ""}`}
+                          onClick={() => handleToggleCall(agent.id)}
+                          disabled={callStatus === "loading" || (callStatus === "active" && activeAgentId !== agent.id)}
+                          title={callStatus === "active" && activeAgentId === agent.id ? "End test call" : "Test call (web)"}
+                        >
+                          {callStatus === "loading" && activeAgentId === agent.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : callStatus === "active" && activeAgentId === agent.id ? (
+                            <PhoneOff size={14} />
+                          ) : (
+                            <Phone size={14} />
+                          )}
+                          {callStatus === "active" && activeAgentId === agent.id ? "End" : "Test"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
+                          onClick={() => handleDeployAgent(agent.id)}
+                          title="Load into dialer"
+                        >
+                          <Zap size={14} />
+                          Deploy
+                        </button>
+                        <button
+                          type="button"
+                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
+                          onClick={() => handleEditAgent(agent.id)}
+                          title="Edit agent"
+                        >
+                          <Pencil size={14} />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs text-bad hover:bg-bad/10"
+                          onClick={() => handleDeleteAgent(agent.id)}
+                          disabled={isDeletingAgent === agent.id}
+                          title="Delete agent"
+                        >
+                          {isDeletingAgent === agent.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!["pane-audio", "pane-clone", "pane-Create", "pane-agents", "pane-my-agents", "pane-call-logs", "pane-docs", "pane-settings"].includes(activeTab) && (
             <div className="tab-pane active placeholder-pane">
               Coming Soon: {activeItem?.label}
             </div>
@@ -3559,19 +3771,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Modal Overlay */}
-      {isModalOpen && (
-        <div className="modal-overlay flex">
-          <div className="modal">
-            <div className="title mb-5">
-              <h1>🔑 Configuration</h1>
-            </div>
-            <div className="flex gap-2.5 justify-end mt-6">
-              <button className="btn" onClick={() => setIsModalOpen(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
