@@ -189,6 +189,7 @@ export default function Dashboard() {
 
   const [callStatus, setCallStatus] = useState<"idle" | "loading" | "active">("idle");
   const [activeAgentId, setActiveAgentId] = useState("");
+  const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<{ text: string; role: "user" | "agent" }[]>([]);
   const [liveInterimTranscript, setLiveInterimTranscript] = useState<{ user: string; agent: string }>({
     user: "",
@@ -344,8 +345,17 @@ export default function Dashboard() {
       resetWebCallUi();
     };
     const onError = (e: unknown) => {
-      console.error("Browser call error:", e);
-      resetWebCallUi();
+      const errMsg =
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+          ? e
+          : JSON.stringify(e, Object.getOwnPropertyNames(e as object || {}), 2);
+      console.error("Browser call error:", errMsg, e);
+      // Don't tear down UI for non-fatal "meeting has ended" or empty errors
+      if (errMsg && errMsg !== "{}" && errMsg !== "undefined") {
+        resetWebCallUi();
+      }
     };
     const onMessage = (message: { type: string; transcriptType?: string; transcript?: string; role?: string }) => {
       if (message.type === "transcript" && message.transcript && message.role) {
@@ -570,10 +580,16 @@ export default function Dashboard() {
       if (pendingWebCallStartRef.current !== startToken) return;
       console.log("Starting web call for assistant:", idToUse);
       await orbit.start(idToUse);
-    } catch (err) {
-      console.error("Failed to start web call:", err);
+    } catch (err: unknown) {
+      const errDetail =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+          ? err
+          : JSON.stringify(err, null, 2);
+      console.error("Failed to start web call:", errDetail, err);
       resetWebCallUi();
-      alert("Failed to connect to voice engine. Please check your internet connection or agent ID.");
+      alert(`Failed to connect to voice engine.\n\n${errDetail || "Unknown error — check browser console for details."}`);
     }
   };
 
@@ -589,17 +605,29 @@ export default function Dashboard() {
   ];
 
   const loadVoicesAndModels = useCallback(async () => {
-    // Only fetch VAPI voices
-    const vapiVoices = await authedFetch("/api/orbit/voices").then(r => r.json()).catch(() => []);
+    // Fetch VAPI voices (for agent calling) and ElevenLabs voices (for TTS) in parallel
+    const [vapiVoices, echoVoices] = await Promise.all([
+      authedFetch("/api/orbit/voices").then(r => r.json()).catch(() => []),
+      authedFetch("/api/echo/voices").then(r => r.json()).catch(() => []),
+    ]);
 
-    // Map VAPI voices to remove provider branding
-    const cleanedVoices = (Array.isArray(vapiVoices) ? vapiVoices : []).map((v) => ({
+    // ElevenLabs voices are used for TTS — they have real provider voice IDs
+    const echoList: Voice[] = Array.isArray(echoVoices) ? echoVoices : [];
+
+    // VAPI voices are kept separately for agent/call features but also shown in the dropdown
+    // by merging with ElevenLabs voices (ElevenLabs voices take priority since they work with TTS)
+    const vapiList = (Array.isArray(vapiVoices) ? vapiVoices : []).map((v: Record<string, unknown>) => ({
       ...v,
-      provider: undefined // Remove provider branding
-    }));
-    
-    setVoices(cleanedVoices as unknown as Voice[]);
-    if (cleanedVoices.length > 0 && !selectedVoice) setSelectedVoice((cleanedVoices[0] as Voice).voice_id);
+      provider: undefined,
+    })) as unknown as Voice[];
+
+    // Merge: ElevenLabs voices first (they work with TTS), then VAPI-only voices for display
+    const echoIds = new Set(echoList.map(v => v.voice_id));
+    const vapiOnly = vapiList.filter(v => !echoIds.has(v.voice_id));
+    const merged = [...echoList, ...vapiOnly];
+
+    setVoices(merged);
+    if (merged.length > 0 && !selectedVoice) setSelectedVoice(merged[0].voice_id);
 
     try {
       const res = await authedFetch("/api/echo/models");
@@ -971,7 +999,7 @@ export default function Dashboard() {
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [isFetchingBases, setIsFetchingBases] = useState(false);
   const [userAssistantId, setUserAssistantId] = useState<string | null>(null);
-  const [userAgents, setUserAgents] = useState<{ id: string; name?: string; firstMessage?: string }[]>([]);
+  const [userAgents, setUserAgents] = useState<{ id: string; name?: string; firstMessage?: string; voice?: { voiceId?: string; provider?: string } }[]>([]);
   const [newAgentName, setNewAgentName] = useState(DEFAULT_AGENT_NAME);
   const [agentStatus, setAgentStatus] = useState("");
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
@@ -1555,6 +1583,8 @@ export default function Dashboard() {
     if (!reader) throw new Error("No response body");
     const decoder = new TextDecoder();
     let buffer = "";
+    let tokenCount = 0;
+    let streamError = "";
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -1563,22 +1593,33 @@ export default function Dashboard() {
       buffer = lines.pop() || "";
       for (const line of lines) {
         if (!line.trim()) continue;
+        let chunk: { type: string; value?: string; name?: string; firstMessage?: string; systemPrompt?: string };
         try {
-          const chunk = JSON.parse(line) as { type: string; value?: string; name?: string; firstMessage?: string; systemPrompt?: string };
-          if (chunk.type === "name" && chunk.value) setNewAgentName(chunk.value);
-          if (chunk.type === "firstMessage" && chunk.value) setAgentIntroSpiel(chunk.value);
-          if (chunk.type === "systemPrompt" && chunk.value) setAgentSkillsPrompt(chunk.value);
-          if (chunk.type === "done") {
-            if (chunk.name) setNewAgentName(chunk.name);
-            if (chunk.firstMessage) setAgentIntroSpiel(chunk.firstMessage);
-            if (chunk.systemPrompt) setAgentSkillsPrompt(chunk.systemPrompt);
-            setAgentVoice(`vapi:${selectedVoice}`);
-          }
+          chunk = JSON.parse(line);
         } catch {
-          /* skip invalid lines */
+          continue; /* skip invalid JSON lines */
+        }
+        if (chunk.type === "token") {
+          tokenCount++;
+          if (tokenCount % 5 === 0 || tokenCount <= 3) {
+            setAgentVoiceStatus(`Generating template... (${tokenCount} tokens)`);
+          }
+        }
+        if (chunk.type === "error" && chunk.value) {
+          streamError = chunk.value;
+        }
+        if (chunk.type === "name" && chunk.value) setNewAgentName(chunk.value);
+        if (chunk.type === "firstMessage" && chunk.value) setAgentIntroSpiel(chunk.value);
+        if (chunk.type === "systemPrompt" && chunk.value) setAgentSkillsPrompt(chunk.value);
+        if (chunk.type === "done") {
+          if (chunk.name) setNewAgentName(chunk.name);
+          if (chunk.firstMessage) setAgentIntroSpiel(chunk.firstMessage);
+          if (chunk.systemPrompt) setAgentSkillsPrompt(chunk.systemPrompt);
+          setAgentVoice(`vapi:${selectedVoice}`);
         }
       }
     }
+    if (streamError) throw new Error(streamError);
   }, [selectedVoice]);
 
   const handleAgentVoiceGenerate = useCallback(async () => {
@@ -3054,58 +3095,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-              {userAgents.length > 0 && (
-                <div className="mt-8 max-w-[980px]">
-                  <label className="mb-3 block text-2xs font-semibold text-faint uppercase tracking-wider">My Agents</label>
-                  <div className="space-y-2">
-                    {userAgents.map((agent) => (
-                      <div key={agent.id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{agent.name || "Unnamed Agent"}</div>
-                          <div className="text-2xs text-faint truncate">
-                            {agent.firstMessage || "No first message"}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <button
-                            type="button"
-                            className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
-                            onClick={() => handleDeployAgent(agent.id)}
-                            title="Deploy"
-                          >
-                            <Zap size={14} />
-                            Deploy
-                          </button>
-                          <button
-                            type="button"
-                            className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
-                            onClick={() => handleEditAgent(agent.id)}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs text-bad hover:bg-bad/10"
-                            onClick={() => handleDeleteAgent(agent.id)}
-                            disabled={isDeletingAgent === agent.id}
-                            title="Delete"
-                          >
-                            {isDeletingAgent === agent.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={14} />
-                            )}
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+              {/* Active session indicator */}
               <div className="mt-8 max-w-[980px]">
                 <label className="mb-3 block text-2xs font-semibold text-faint uppercase tracking-wider">Active</label>
                 <div className={`placeholder-pane h-24 text-2xs ${callStatus === "active" ? "border-lime" : ""}`}>
@@ -3611,67 +3601,99 @@ export default function Dashboard() {
                   <span>No agents yet — go to <button className="text-lime underline bg-transparent" onClick={() => setActiveTab("pane-Create")}>Create</button> to build one.</span>
                 </div>
               ) : (
-                <div className="space-y-3 max-w-[760px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-[980px]">
                   {userAgents.map((agent) => (
-                    <div key={agent.id} className="flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 transition-colors">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-lime/10 border border-lime/20 flex items-center justify-center">
-                        <UserCircle size={20} className="text-lime" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{agent.name || "Unnamed Agent"}</div>
-                        <div className="text-2xs text-faint truncate mt-0.5">
-                          {agent.firstMessage || "No first message set"}
+                    <div key={agent.id} className="agent-card group">
+                      {/* Card Header */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="agent-card-avatar">
+                          {agent.voice?.voiceId ? (
+                            <div className="w-6 h-6 rounded-full bg-lime/20 flex items-center justify-center">
+                              <Mic size={14} className="text-lime" />
+                            </div>
+                          ) : (
+                            <UserCircle size={22} />
+                          )}
                         </div>
-                        <div className="text-2xs text-faint/50 mt-0.5 font-mono">ID: {agent.id.slice(0, 12)}…</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm truncate">{agent.name || "Unnamed Agent"}</div>
+                          <div className="text-2xs text-faint/60 font-mono">
+                            {agent.voice?.voiceId ? (
+                              <span className="text-lime/70">{agent.voice.voiceId}</span>
+                            ) : (
+                              <span>ID: {agent.id.slice(0, 8)}…</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Status dot */}
+                        {callStatus === "active" && activeAgentId === agent.id && (
+                          <div className="w-2 h-2 rounded-full bg-lime animate-pulse shrink-0" />
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+
+                      {/* First message */}
+                      <div className="text-2xs text-faint leading-relaxed line-clamp-2 mb-5 min-h-[2.5em]">
+                        {agent.firstMessage || "No first message set"}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 mt-auto pt-3 border-t border-white/5">
                         <button
                           type="button"
-                          className={`btn flex items-center gap-1.5 py-1.5 px-3 text-2xs ${callStatus === "active" && activeAgentId === agent.id ? "text-bad" : ""}`}
+                          className="agent-card-btn"
+                          onClick={() => {
+                            navigator.clipboard.writeText(agent.id);
+                            setCopiedAgentId(agent.id);
+                            setTimeout(() => setCopiedAgentId(null), 1500);
+                          }}
+                          title="Copy agent ID"
+                        >
+                          <Copy size={13} className={copiedAgentId === agent.id ? "text-lime" : ""} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`agent-card-btn ${callStatus === "active" && activeAgentId === agent.id ? "agent-card-btn-active" : ""}`}
                           onClick={() => handleToggleCall(agent.id)}
                           disabled={callStatus === "loading" || (callStatus === "active" && activeAgentId !== agent.id)}
-                          title={callStatus === "active" && activeAgentId === agent.id ? "End test call" : "Test call (web)"}
+                          title={callStatus === "active" && activeAgentId === agent.id ? "End test call" : "Test call"}
                         >
                           {callStatus === "loading" && activeAgentId === agent.id ? (
-                            <Loader2 size={14} className="animate-spin" />
+                            <Loader2 size={13} className="animate-spin" />
                           ) : callStatus === "active" && activeAgentId === agent.id ? (
-                            <PhoneOff size={14} />
+                            <PhoneOff size={13} />
                           ) : (
-                            <Phone size={14} />
+                            <Phone size={13} />
                           )}
-                          {callStatus === "active" && activeAgentId === agent.id ? "End" : "Test"}
                         </button>
                         <button
                           type="button"
-                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
+                          className="agent-card-btn"
                           onClick={() => handleDeployAgent(agent.id)}
-                          title="Load into dialer"
+                          title="Deploy to dialer"
                         >
-                          <Zap size={14} />
-                          Deploy
+                          <Zap size={13} />
                         </button>
                         <button
                           type="button"
-                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs"
+                          className="agent-card-btn"
                           onClick={() => handleEditAgent(agent.id)}
                           title="Edit agent"
                         >
-                          <Pencil size={14} />
-                          Edit
+                          <Pencil size={13} />
                         </button>
+                        <div className="flex-1" />
                         <button
                           type="button"
-                          className="btn flex items-center gap-1.5 py-1.5 px-3 text-2xs text-bad hover:bg-bad/10"
+                          className="agent-card-btn agent-card-btn-danger"
                           onClick={() => handleDeleteAgent(agent.id)}
                           disabled={isDeletingAgent === agent.id}
                           title="Delete agent"
                         >
                           {isDeletingAgent === agent.id ? (
-                            <Loader2 size={14} className="animate-spin" />
+                            <Loader2 size={13} className="animate-spin" />
                           ) : (
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           )}
-                          Delete
                         </button>
                       </div>
                     </div>
@@ -3689,21 +3711,19 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Test Call Modal: orb, audio visualizer, live transcription */}
+      {/* Test Call Modal: two-panel layout — orb + scrollable transcript */}
       {showTestCallModal && (
         <div className="call-overlay call-modal">
-          <div className="call-content">
-            <div className="orb-container">
-              <div className={`orb active ${isSpeaking ? "speaking" : ""}`}></div>
-              {callStatus === "loading" && (
-                <div className="text-muted text-sm">Ringing...</div>
-              )}
-              {callStatus === "active" && (
-                <>
-                  <div className="text-lime font-bold tracking-widest uppercase text-xs">Web Call</div>
-                  <div className="text-2xs text-faint">{activeAgentId}</div>
-                  <div className="text-2xs text-muted">Live transcription on</div>
-                  <div className={`audio-visualizer audio-viz-${audioVizId.replace(/:/g, "")} mt-4`} aria-hidden>
+          <div className="wc-modal">
+            {/* Left Pane: Visualizer & Controls */}
+            <div className="wc-left">
+              <div className="wc-orb-area">
+                <div className={`orb active ${isSpeaking ? "speaking" : ""}`}></div>
+                {callStatus === "loading" && (
+                  <div className="text-muted text-sm mt-4">Ringing...</div>
+                )}
+                {callStatus === "active" && (
+                  <div className={`audio-visualizer audio-viz-${audioVizId.replace(/:/g, "")} mt-5`} aria-hidden>
                     <style>{`
                       ${Array.from({ length: 12 })
                         .map(
@@ -3716,43 +3736,10 @@ export default function Dashboard() {
                       <div key={i} className="audio-bar" />
                     ))}
                   </div>
-                </>
-              )}
-            </div>
-
-            <div className="transcript-box">
-              {transcript.length === 0 && !liveInterimTranscript.user && !liveInterimTranscript.agent ? (
-                <div className="text-faint text-2xs">—</div>
-              ) : (
-                <>
-                  {transcript.map((t, idx) => (
-                    <div key={`${idx}-${t.role}`} className={`mb-4 ${t.role === "user" ? "text-right" : "text-left"}`}>
-                      <div className={`inline-block p-3 rounded-xl ${t.role === "user" ? "bg-white/5" : "text-lime"}`}>
-                        {t.text}
-                      </div>
-                    </div>
-                  ))}
-                  {liveInterimTranscript.user && (
-                    <div className="mb-4 text-right">
-                      <div className="inline-block p-3 rounded-xl bg-white/5 active-text">
-                        {liveInterimTranscript.user}
-                      </div>
-                    </div>
-                  )}
-                  {liveInterimTranscript.agent && (
-                    <div className="mb-4 text-left">
-                      <div className="inline-block p-3 rounded-xl active-text">
-                        {liveInterimTranscript.agent}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="call-controls">
+                )}
+              </div>
               <button
-                className="btn danger px-8 py-4 rounded-full"
+                className="wc-end-btn"
                 onClick={() => {
                   if (callStatus === "active") {
                     pendingWebCallStartRef.current = null;
@@ -3764,8 +3751,57 @@ export default function Dashboard() {
                   }
                 }}
               >
-                <PhoneOff size={20} /> End call
+                <PhoneOff size={18} />
+                <span>End call</span>
               </button>
+            </div>
+
+            {/* Right Pane: Transcript */}
+            <div className="wc-right">
+              <div className="wc-header">
+                <div className="wc-timestamp">{new Date().toLocaleTimeString()}</div>
+                <button
+                  className="wc-close-btn"
+                  onClick={() => {
+                    if (callStatus === "active") {
+                      pendingWebCallStartRef.current = null;
+                      stopWebCallRing();
+                      orbit?.stop();
+                    }
+                    setShowTestCallModal(false);
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="wc-transcript">
+                {transcript.length === 0 && !liveInterimTranscript.user && !liveInterimTranscript.agent ? (
+                  <div className="wc-empty">Waiting for conversation...</div>
+                ) : (
+                  <>
+                    {transcript.map((t, idx) => (
+                      <div key={`${idx}-${t.role}`} className="wc-msg">
+                        <span className={t.role === "user" ? "wc-label-user" : "wc-label-agent"}>
+                          {t.role === "user" ? "You" : "Agent"}
+                        </span>
+                        <span className={t.role === "agent" ? "opacity-90" : ""}>{t.text}</span>
+                      </div>
+                    ))}
+                    {liveInterimTranscript.user && (
+                      <div className="wc-msg">
+                        <span className="wc-label-user">You</span>
+                        <span className="wc-interim">{liveInterimTranscript.user}</span>
+                      </div>
+                    )}
+                    {liveInterimTranscript.agent && (
+                      <div className="wc-msg">
+                        <span className="wc-label-agent">Agent</span>
+                        <span className="wc-interim">{liveInterimTranscript.agent}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
